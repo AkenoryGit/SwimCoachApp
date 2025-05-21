@@ -11,10 +11,15 @@ import SwiftUI
 struct SwimCoachApp: App {
     let persistenceController = PersistenceController.shared
 
+    init() {
+        TrainingUpdateNotifier.shared.updateStatusesIfNeeded(context: persistenceController.container.viewContext)
+    }
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
+                .environment(\.locale, .init(identifier: "ru_RU")) // 🔽 Добавляем локаль
         }
     }
 }
