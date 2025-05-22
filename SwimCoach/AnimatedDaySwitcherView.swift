@@ -17,10 +17,15 @@ struct AnimatedDaySwitcherView: View {
         GeometryReader { geometry in
             HStack(spacing: 0) {
                 DayTimelineView(selectedDate: .constant(previousDate))
+                    .id(previousDate)
                     .frame(width: geometry.size.width)
+
                 DayTimelineView(selectedDate: $selectedDate)
+                    .id(selectedDate)
                     .frame(width: geometry.size.width)
+
                 DayTimelineView(selectedDate: .constant(nextDate))
+                    .id(nextDate)
                     .frame(width: geometry.size.width)
             }
             .offset(x: -geometry.size.width + dragOffset)

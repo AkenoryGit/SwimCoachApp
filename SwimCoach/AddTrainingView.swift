@@ -8,6 +8,13 @@
 import SwiftUI
 import CoreData
 
+enum NewEntryType: String, CaseIterable, Identifiable {
+    case training = "Тренировка"
+    case duty = "Дежурство"
+
+    var id: String { rawValue }
+}
+
 struct AddTrainingView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
@@ -26,6 +33,8 @@ struct AddTrainingView: View {
         let rounded = calendar.date(from: components) ?? now
         return calendar.date(byAdding: .minute, value: 50, to: rounded) ?? now
     }()
+    
+    @State private var entryType: NewEntryType = .training
 
     // Тип тренировки (по умолчанию — персоналка)
     @State private var selectedType: TrainingType = .personal
@@ -50,6 +59,13 @@ struct AddTrainingView: View {
     var body: some View {
         NavigationView {
             Form {
+                Section(header: Text("Тип записи")) {
+                    Picker("Тип", selection: $entryType) {
+                        Text("Тренировка").tag(NewEntryType.training)
+                        Text("Дежурство").tag(NewEntryType.duty)
+                    }
+                    .pickerStyle(.segmented)
+                }
                 Section(header: Text("Дата и тип")) {
                     DatePicker("Дата и время", selection: $date)
                         .onChange(of: date) { newDate in

@@ -10,6 +10,7 @@ import CoreData
 
 struct EditTrainingView: View {
     @ObservedObject var training: Training
+    var onSave: (() -> Void)? = nil
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
 
@@ -20,8 +21,17 @@ struct EditTrainingView: View {
     @State private var status: TrainingStatus
     @State private var note: String
     @State private var selectedClients: Set<UUID> = []
+    
+    enum EntryType: String, CaseIterable, Identifiable {
+        case training = "Тренировка"
+        case duty = "Дежурство"
 
-    // 👇 Добавили сохранение исходного статуса
+        var id: String { rawValue }
+    }
+
+    @State private var entryType: EntryType = .training
+
+    // Добавили сохранение исходного статуса
     private let originalStatus: String
 
     @FetchRequest(
@@ -31,58 +41,74 @@ struct EditTrainingView: View {
     )
     private var activeClients: FetchedResults<Client>
 
-    init(training: Training) {
-        _training = ObservedObject(wrappedValue: training)
-        _date = State(initialValue: training.date ?? Date())
-        _endTime = State(initialValue: training.endTime ?? Date())
-        _selectedType = State(initialValue: TrainingType(rawValue: training.type ?? "") ?? .personal)
-        _selectedLocation = State(
-            initialValue: TrainingLocation(rawValue: training.location ?? "") ?? .bigPool
-        )
-        _status = State(initialValue: TrainingStatus(rawValue: training.status ?? "") ?? .planned)
-        _note = State(initialValue: training.note ?? "")
-        self.originalStatus = training.status ?? "Запланирована" // 👈 тут сохраняем старый статус
+    init(training: Training, onSave: (() -> Void)? = nil) {
+        self._training = ObservedObject(wrappedValue: training)
+        self._date = State(initialValue: training.date ?? Date())
+        self._endTime = State(initialValue: training.endTime ?? Date())
+        self._selectedType = State(initialValue: TrainingType(rawValue: training.type ?? "") ?? .personal)
+        self._selectedLocation = State(initialValue: TrainingLocation(rawValue: training.location ?? "") ?? .bigPool)
+        self._status = State(initialValue: TrainingStatus(rawValue: training.status ?? "") ?? .planned)
+        self._note = State(initialValue: training.note ?? "")
+        self.originalStatus = training.status ?? "Запланирована"
+        self.onSave = onSave
     }
 
     var body: some View {
         NavigationView {
             Form {
-                Section {
-                    DatePicker("Дата и время", selection: $date)
-                    DatePicker("Окончание", selection: $endTime)
-                    Picker("Тип тренировки", selection: $selectedType) {
-                        ForEach(TrainingType.allCases) { type in
-                            Text(type.rawValue).tag(type)
+                Section(header: Text("Тип записи")) {
+                    Picker("Тип записи", selection: $entryType) {
+                        ForEach(EntryType.allCases) { entry in
+                            Text(entry.rawValue).tag(entry)
                         }
                     }
-                    Picker("Локация", selection: $selectedLocation) {
-                        ForEach(TrainingLocation.allCases) { location in
-                            Text(location.rawValue).tag(location)
-                        }
-                    }
-                    Picker("Статус", selection: $status) {
-                        ForEach(TrainingStatus.allCases, id: \.self) { status in
-                            Text(status.rawValue).tag(status)
-                        }
-                    }
-                } header: {
-                    Text("Дата и тип")
+                    .pickerStyle(.segmented)
                 }
 
-                Section(header: Text("Клиенты")) {
-                    ForEach(activeClients) { client in
-                        MultipleSelectionRow(
-                            title: client.fullName ?? "Без имени",
-                            isSelected: selectedClients.contains(client.id ?? UUID())
-                        ) {
-                            toggleClientSelection(client)
+                if entryType == .training {
+                    Section(header: Text("Тренировка")) {
+                        DatePicker("Дата и время", selection: $date)
+                        DatePicker("Окончание", selection: $endTime)
+                        Picker("Тип тренировки", selection: $selectedType) {
+                            ForEach(TrainingType.allCases) { type in
+                                Text(type.rawValue).tag(type)
+                            }
+                        }
+                        Picker("Локация", selection: $selectedLocation) {
+                            ForEach(TrainingLocation.allCases) { location in
+                                Text(location.rawValue).tag(location)
+                            }
+                        }
+                        Picker("Статус", selection: $status) {
+                            ForEach(TrainingStatus.allCases, id: \.self) { status in
+                                Text(status.rawValue).tag(status)
+                            }
                         }
                     }
-                }
 
-                Section(header: Text("Заметка")) {
-                    TextEditor(text: $note)
-                        .frame(height: 100)
+                    Section(header: Text("Клиенты")) {
+                        ForEach(activeClients) { client in
+                            MultipleSelectionRow(
+                                title: client.fullName ?? "Без имени",
+                                isSelected: selectedClients.contains(client.id ?? UUID())
+                            ) {
+                                toggleClientSelection(client)
+                            }
+                        }
+                    }
+
+                    Section(header: Text("Заметка")) {
+                        ZStack(alignment: .topLeading) {
+                            if note.isEmpty {
+                                Text("Введите заметку...")
+                                    .foregroundColor(.gray)
+                                    .padding(.top, 8)
+                                    .padding(.leading, 5)
+                            }
+                            TextEditor(text: $note)
+                                .frame(height: 100)
+                        }
+                    }
                 }
             }
             .navigationTitle("Редактировать")
@@ -101,7 +127,7 @@ struct EditTrainingView: View {
                 loadSelectedClients()
             }
         }
-    }
+}
 
     private func toggleClientSelection(_ client: Client) {
         guard let id = client.id else { return }
@@ -118,6 +144,25 @@ struct EditTrainingView: View {
     }
 
     private func saveChanges() {
+        guard entryType == .training else {
+            training.date = date
+            training.endTime = endTime
+            training.type = "Дежурство"
+            training.location = ""
+            training.status = status.rawValue
+            training.note = note
+            training.removeFromClients(training.clients ?? [])
+
+            do {
+                try viewContext.save()
+                onSave?()
+                TrainingUpdateNotifier.shared.notifyUpdate()
+            } catch {
+                print("Ошибка при сохранении дежурства: \(error.localizedDescription)")
+            }
+            return
+        }
+        
         training.date = date
         training.endTime = endTime
         training.type = selectedType.rawValue
@@ -133,6 +178,7 @@ struct EditTrainingView: View {
                 }
             }
         }
+        training.removeFromClients(training.clients ?? [])
 
         for client in activeClients {
             if let id = client.id, selectedClients.contains(id) {
@@ -144,7 +190,7 @@ struct EditTrainingView: View {
         let statusesToDeduct: [TrainingStatus] = [.completed, .cancelledAndPaid]
 
         if let old = TrainingStatus(rawValue: originalStatus),
-           statusesToDeduct.contains(old),
+           !statusesToDeduct.contains(old),
            statusesToDeduct.contains(status) {
             for client in activeClients {
                 guard let id = client.id else { continue }
@@ -174,6 +220,7 @@ struct EditTrainingView: View {
 
         do {
             try viewContext.save()
+            onSave?() 
             TrainingUpdateNotifier.shared.notifyUpdate()
         } catch {
             print("Ошибка при сохранении изменений: \(error.localizedDescription)")

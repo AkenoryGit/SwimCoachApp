@@ -13,7 +13,7 @@ struct TrainingCardView: View {
     var body: some View {
         HStack(spacing: 0) {
             ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedCorners(tl: 12, bl: 12)
                     .fill(colorForLocation(training.location))
 
                 Text(shortLabel(for: training.location))
@@ -24,28 +24,32 @@ struct TrainingCardView: View {
             .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 4) {
-                if let statusEnum = TrainingStatus(rawValue: training.status ?? "") {
-                    HStack(spacing: 6) {
+                HStack(spacing: 6) {
+                    if let statusEnum = TrainingStatus(rawValue: training.status ?? "") {
                         Circle()
                             .fill(statusEnum.color)
                             .frame(width: 8, height: 8)
 
-                        Text(statusEnum.rawValue)
+                        Text(statusEnum.shortLabel)
                             .font(.caption2)
                             .foregroundColor(.secondary)
                             .minimumScaleFactor(0.5)
+                            .lineLimit(1)
                     }
-                }
 
-                Text(shortType(training.type))
-                    .font(.caption)
-                    .minimumScaleFactor(0.5)
+                    Text(shortType(training.type))
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                        .minimumScaleFactor(0.5)
+                        .lineLimit(1)
+                }
 
                 if let clients = training.clients as? Set<Client>, !clients.isEmpty {
                     Text(clients.map { $0.fullName ?? "Без имени" }
                         .sorted()
                         .joined(separator: ", "))
-                        .font(.headline)
+                        .font(.caption2)
                         .minimumScaleFactor(0.5)
                         .lineLimit(2)
                 }
@@ -59,9 +63,9 @@ struct TrainingCardView: View {
 
                 Spacer(minLength: 0)
             }
-            .padding(8)
-            .background(Color(.systemBackground))
-            .cornerRadius(12)
+            .padding(4)
+            .background(Color.brown)
+            .clipShape(RoundedCorners(tr: 12, br: 12))
             .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
         }
     }
@@ -129,5 +133,16 @@ struct RoundedCorners: Shape {
         path.closeSubpath()
 
         return path
+    }
+}
+
+extension TrainingStatus {
+    var shortLabel: String {
+        switch self {
+        case .planned: return "План"
+        case .completed: return "Проведена"
+        case .cancelled: return "Отмена"
+        case .cancelledAndPaid: return "Списано"
+        }
     }
 }

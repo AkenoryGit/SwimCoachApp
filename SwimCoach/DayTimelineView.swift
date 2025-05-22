@@ -12,83 +12,123 @@ struct DayTimelineView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Binding var selectedDate: Date
     private let hourHeight: CGFloat = 60
+    let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
+    var onTrainingChanged: (() -> Void)? = nil
 
+    @State private var nowOffset: CGFloat? = currentTimeOffset()
     @State private var selectedTraining: Training?
     @State private var trainings: [Training] = []
+    @State private var refreshTrigger = UUID()
+    @State private var duties: [Duty] = []
 
     var body: some View {
-        let positioned = calculatePositionedTrainings(from: trainings, hourHeight: hourHeight)
+        let _ = refreshTrigger
+        let positionedTrainings = calculatePositionedTrainings(from: trainings, hourHeight: hourHeight)
+        let positionedDuties = calculatePositionedDuties(from: duties, hourHeight: hourHeight)
 
-        ScrollView {
-            ZStack(alignment: .topLeading) {
-                // Сетка времени
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(6..<23, id: \.self) { hour in
-                        HStack(alignment: .top) {
-                            Text(String(format: "%02d:00", hour))
-                                .frame(width: 50, alignment: .trailing)
-                                .font(.caption)
-                                .padding(.trailing, 4)
-                            Rectangle()
-                                .fill(Color.gray.opacity(0.3))
-                                .frame(height: 0.5)
-                        }
-                        .frame(height: hourHeight)
+        ScrollView(.vertical) {
+            HStack(spacing: 0) {
+                // Время
+                VStack(alignment: .trailing, spacing: 0) {
+                    ForEach(6..<24) { hour in
+                        Text(String(format: "%02d:00", hour))
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                            .frame(height: hourHeight, alignment: .topTrailing)
+                            .padding(.trailing, 4)
                     }
                 }
-                .offset(y: -23)
+                .frame(width: 50)
+                .padding(.leading, 8)
 
-                // Слой с тренировками
-                TrainingTimelineLayer(
-                    positionedTrainings: positioned,
-                    selectedTraining: $selectedTraining,
-                    selectedDate: selectedDate
-                )
+                // Сетка, линия времени, тренировки и дежурства
+                ZStack(alignment: .topLeading) {
+                    TimelineBackgroundView(hourHeight: hourHeight)
+
+                    if Calendar.current.isDateInToday(selectedDate),
+                       let offset = nowOffset {
+                        Rectangle()
+                            .fill(Color.red)
+                            .frame(height: 1)
+                            .offset(y: offset - 0.5)
+                    }
+
+                    HStack(spacing: 0) {
+                        TrainingTimelineLayer(
+                            positionedTrainings: positionedTrainings,
+                            selectedTraining: $selectedTraining,
+                            selectedDate: selectedDate,
+                            onTrainingChanged: {
+                                fetchData()
+                                refreshTrigger = UUID()
+                            }
+                        )
+                        .frame(width: UIScreen.main.bounds.width * 0.7)
+
+                        DutyTimelineLayer(positionedDuties: positionedDuties)
+                            .frame(width: UIScreen.main.bounds.width * 0.3)
+                    }
+                }
             }
-            .sheet(item: $selectedTraining) { training in
-                EditTrainingView(training: training)
-            }
-            .padding(.vertical)
+            .frame(minHeight: CGFloat(18) * hourHeight)
         }
+        .padding(.leading, 88)
+        .background(Color.white)
+        .onReceive(timer) { _ in
+            nowOffset = currentTimeOffset()
+        }
+        .onAppear { fetchData() }
+        .onChange(of: selectedDate) { _ in fetchData() }
         .simultaneousGesture(
             DragGesture()
                 .onEnded { value in
                     if abs(value.translation.width) > 50 && abs(value.translation.height) < 20 {
                         withAnimation(.easeInOut(duration: 0.3)) {
-                            if value.translation.width < 0 {
-                                // Свайп влево — следующий день
-                                selectedDate = Calendar.current.date(byAdding: .day, value: 1, to: selectedDate) ?? selectedDate
-                            } else {
-                                // Свайп вправо — предыдущий день
-                                selectedDate = Calendar.current.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
-                            }
+                            selectedDate = Calendar.current.date(byAdding: .day, value: value.translation.width < 0 ? 1 : -1, to: selectedDate) ?? selectedDate
                         }
                     }
                 }
         )
-        .onAppear {
-            fetchTrainings()
-        }
-        .onChange(of: selectedDate) { _ in
-            fetchTrainings()
-        }
     }
 
-    private func fetchTrainings() {
+    private func fetchData() {
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: selectedDate)
         let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
 
-        let request = NSFetchRequest<Training>(entityName: "Training")
-        request.sortDescriptors = [NSSortDescriptor(keyPath: \Training.date, ascending: true)]
-        request.predicate = NSPredicate(format: "date >= %@ AND date < %@", startOfDay as NSDate, endOfDay as NSDate)
+        let trainingRequest = NSFetchRequest<Training>(entityName: "Training")
+        trainingRequest.sortDescriptors = [NSSortDescriptor(keyPath: \Training.date, ascending: true)]
+        trainingRequest.predicate = NSPredicate(format: "date >= %@ AND date < %@", startOfDay as NSDate, endOfDay as NSDate)
+
+        let dutyRequest = NSFetchRequest<Duty>(entityName: "Duty")
+        dutyRequest.sortDescriptors = [NSSortDescriptor(keyPath: \Duty.startTime, ascending: true)]
+        dutyRequest.predicate = NSPredicate(format: "startTime >= %@ AND startTime < %@", startOfDay as NSDate, endOfDay as NSDate)
 
         do {
-            trainings = try viewContext.fetch(request)
+            trainings = try viewContext.fetch(trainingRequest)
+            duties = try viewContext.fetch(dutyRequest)
         } catch {
-            print("❌ Ошибка при загрузке тренировок: \(error)")
+            print("Ошибка при загрузке данных: \(error)")
             trainings = []
+            duties = []
         }
+    }
+}
+
+struct TimelineBackgroundView: View {
+    let hourHeight: CGFloat
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(6..<24) { _ in
+                Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(height: 1)
+                Spacer()
+                    .frame(height: hourHeight - 1)
+            }
+        }
+        .background(Color.white)
     }
 }
 
@@ -134,6 +174,7 @@ struct TrainingTimelineLayer: View {
     let positionedTrainings: [PositionedTraining]
     @Binding var selectedTraining: Training?
     let selectedDate: Date
+    var onTrainingChanged: (() -> Void)? = nil
 
     @State private var nowOffset: CGFloat? = currentTimeOffset()
     
@@ -152,8 +193,14 @@ struct TrainingTimelineLayer: View {
             }
 
             ForEach(positionedTrainings) { item in
-                DraggableTrainingView(positionedTraining: item, hourHeight: 60)
-                    .padding(.leading, 60)
+                DraggableTrainingView(
+                    positionedTraining: item,
+                    hourHeight: 60,
+                    onTrainingChanged: {
+                        onTrainingChanged?() // вызовем если задан
+                    }
+                )
+                .padding(.leading, 10)
             }
         }
         // таймер безопасно обновляет `nowOffset`
@@ -177,3 +224,5 @@ func currentTimeOffset() -> CGFloat? {
 
     return clampedMinutes - minHour * 60
 }
+
+

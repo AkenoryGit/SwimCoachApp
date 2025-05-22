@@ -13,6 +13,7 @@ struct DraggableTrainingView: View {
     @Environment(\.managedObjectContext) private var viewContext
     let positionedTraining: PositionedTraining
     let hourHeight: CGFloat
+    var onTrainingChanged: (() -> Void)? = nil
 
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging = false
@@ -54,6 +55,7 @@ struct DraggableTrainingView: View {
 
                         do {
                             try viewContext.save()
+                            onTrainingChanged?() 
                         } catch {
                             print("❌ Ошибка при сохранении: \(error)")
                         }
@@ -68,7 +70,9 @@ struct DraggableTrainingView: View {
                 }
             }
             .sheet(isPresented: $showEditor) {
-                EditTrainingView(training: training)
+                EditTrainingView(training: training, onSave: {
+                    onTrainingChanged?()
+                })
             }
     }
 
