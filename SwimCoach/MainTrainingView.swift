@@ -16,15 +16,14 @@ struct MainTrainingView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 CalendarView(selectedDate: $selectedDate)
-                    .fixedSize(horizontal: false, vertical: true) // ограничиваем рост
+                    .fixedSize(horizontal: false, vertical: true)
 
-                DayTimelineView(selectedDate: selectedDate)
+                AnimatedDaySwitcherView(selectedDate: $selectedDate)
                     .padding(.horizontal)
-                    .frame(maxHeight: .infinity, alignment: .top) // не даём растягиваться
-
+                    .frame(maxHeight: .infinity, alignment: .top)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity) // растягиваем по экрану
-            .background(Color(.systemGroupedBackground)) // чуть приятнее фон (по желанию)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.systemGroupedBackground))
             .navigationTitle("Календарь")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {

@@ -11,71 +11,61 @@ struct TrainingCardView: View {
     let training: Training
 
     var body: some View {
-        GeometryReader { geo in
-            HStack(spacing: 0) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(colorForLocation(training.location))
+        HStack(spacing: 0) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(colorForLocation(training.location))
 
-                    Text(shortLabel(for: training.location))
-                        .font(.caption2)
-                        .foregroundColor(.white)
-                        .rotationEffect(.degrees(-90))
-                }
-                .frame(width: 28)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    if let statusEnum = TrainingStatus(rawValue: training.status ?? "") {
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(statusEnum.color)
-                                .frame(width: 8, height: 8)
-
-                            Text(statusEnum.rawValue)
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .minimumScaleFactor(0.5)
-                        }
-                    }
-
-                    Text(shortType(training.type))
-                        .font(.caption)
-                        .minimumScaleFactor(0.5)
-
-                    if let clients = training.clients as? Set<Client>, !clients.isEmpty {
-                        Text(clients.map { $0.fullName ?? "Без имени" }
-                            .sorted()
-                            .joined(separator: ", "))
-                            .font(.headline)
-                            .minimumScaleFactor(0.5)
-                            .lineLimit(2)
-                    }
-
-                    if let note = training.note, !note.isEmpty {
-                        Text(note)
-                            .font(.caption2)
-                            .foregroundColor(.gray)
-                            .minimumScaleFactor(0.5)
-                    }
-
-                    Spacer(minLength: 0)
-                }
-                .padding(8)
-                .frame(height: geo.size.height) // ← КЛЮЧ: растягиваем VStack
-                .background(Color(.systemBackground))
-                .cornerRadius(12)
-                .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+                Text(shortLabel(for: training.location))
+                    .font(.caption2)
+                    .foregroundColor(.white)
+                    .rotationEffect(.degrees(-90))
             }
-            .frame(height: geo.size.height) // ← и сам HStack тоже на нужную высоту
+            .frame(width: 28)
+
+            VStack(alignment: .leading, spacing: 4) {
+                if let statusEnum = TrainingStatus(rawValue: training.status ?? "") {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(statusEnum.color)
+                            .frame(width: 8, height: 8)
+
+                        Text(statusEnum.rawValue)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .minimumScaleFactor(0.5)
+                    }
+                }
+
+                Text(shortType(training.type))
+                    .font(.caption)
+                    .minimumScaleFactor(0.5)
+
+                if let clients = training.clients as? Set<Client>, !clients.isEmpty {
+                    Text(clients.map { $0.fullName ?? "Без имени" }
+                        .sorted()
+                        .joined(separator: ", "))
+                        .font(.headline)
+                        .minimumScaleFactor(0.5)
+                        .lineLimit(2)
+                }
+
+                if let note = training.note, !note.isEmpty {
+                    Text(note)
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                        .minimumScaleFactor(0.5)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(8)
+            .background(Color(.systemBackground))
+            .cornerRadius(12)
+            .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
         }
     }
 
-    private func formatTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: date)
-    }
-    
     private func shortType(_ type: String?) -> String {
         guard let type = type else { return "Без типа" }
         if type.contains("Персональная") { return "ПТ" }
@@ -103,19 +93,6 @@ struct TrainingCardView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: date)
-    }
-
-    private func colorForLocation(_ location: String?) -> Color {
-        switch location {
-        case TrainingLocation.bigPool.rawValue: return .green
-        case TrainingLocation.smallPool.rawValue: return .pink
-        case TrainingLocation.gym.rawValue: return .blue
-        default: return .gray
-        }
-    }
-
-    private func shortLabel(for location: String?) -> String {
-        location ?? ""
     }
 
 

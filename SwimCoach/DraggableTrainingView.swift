@@ -6,101 +6,75 @@
 //
 
 import SwiftUI
+import CoreData
+import UIKit
 
 struct DraggableTrainingView: View {
     @Environment(\.managedObjectContext) private var viewContext
-    @State private var offset: CGFloat = 0
-    @State private var showAlert = false
-    @State private var originalOffset: CGFloat = 0
-    @State private var newStartDate: Date = Date()
-
     let positionedTraining: PositionedTraining
     let hourHeight: CGFloat
 
+    @State private var dragOffset: CGFloat = 0
+    @State private var isDragging = false
+    @State private var showEditor = false
+
     var body: some View {
         let training = positionedTraining.training
+        let totalOffset = positionedTraining.topOffset + dragOffset
 
-        VStack(alignment: .leading, spacing: 4) {
-            Text(training.type ?? "Без типа")
-                .font(.headline)
+        TrainingCardView(training: training)
+            .frame(height: positionedTraining.height)
+            .offset(y: totalOffset)
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.3)
+                    .onEnded { _ in
+                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                        generator.impactOccurred()
+                    }
+            )
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        if !isDragging {
+                            let impact = UIImpactFeedbackGenerator(style: .medium)
+                            impact.impactOccurred()
+                        }
+                        dragOffset = value.translation.height
+                        isDragging = true
+                    }
+                    .onEnded { value in
+                        let generator = UIImpactFeedbackGenerator(style: .soft)
+                        generator.impactOccurred()
+                        let minutesDragged = value.translation.height
+                        let newStartDate = shift(training.date, by: minutesDragged)
+                        let newEndDate = shift(training.endTime, by: minutesDragged)
 
-            if let clients = training.clients as? Set<Client>, !clients.isEmpty {
-                Text(clients.map { $0.fullName ?? "Без имени" }
-                        .sorted()
-                        .joined(separator: ", "))
-                    .font(.caption)
-            }
+                        training.date = newStartDate
+                        training.endTime = newEndDate
 
-            if let start = training.date, let end = training.endTime {
-                Text("\(formatTime(start))–\(formatTime(end))")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding(8)
-        .background(Color.blue.opacity(0.8))
-        .foregroundColor(.white)
-        .cornerRadius(8)
-        .offset(y: offset)
-        .gesture(
-            DragGesture()
-                .onChanged { value in
-                    offset = value.translation.height + originalOffset
+                        do {
+                            try viewContext.save()
+                        } catch {
+                            print("❌ Ошибка при сохранении: \(error)")
+                        }
+
+                        dragOffset = 0
+                        isDragging = false
+                    }
+            )
+            .onTapGesture {
+                if !isDragging {
+                    showEditor = true
                 }
-                .onEnded { value in
-                    let totalOffset = value.translation.height + originalOffset
-                    let newStartTime = calculateNewTime(offset: totalOffset)
-                    newStartDate = newStartTime
-                    showAlert = true
-                }
-        )
-        .alert("Изменить время тренировки?", isPresented: $showAlert) {
-            Button("Отменить", role: .cancel) {
-                offset = originalOffset // откатить назад
             }
-            Button("Изменить", role: .destructive) {
-                updateTrainingTime(to: newStartDate)
+            .sheet(isPresented: $showEditor) {
+                EditTrainingView(training: training)
             }
-        } message: {
-            Text("Новое начало: \(formatTime(newStartDate))")
-        }
-        .position(x: UIScreen.main.bounds.width / 2, y: positionedTraining.topOffset + offset + positionedTraining.height / 2)
-        .frame(height: positionedTraining.height)
-        .onAppear {
-            originalOffset = 0
-        }
     }
 
-    private func calculateNewTime(offset: CGFloat) -> Date {
-        let minutes = offset / hourHeight * 60
-        guard let originalDate = positionedTraining.training.date else { return Date() }
-        return Calendar.current.date(byAdding: .minute, value: Int(minutes), to: originalDate) ?? originalDate
-    }
-
-    private func updateTrainingTime(to newStart: Date) {
-        guard let oldStart = positionedTraining.training.date,
-              let oldEnd = positionedTraining.training.endTime else { return }
-
-        let duration = oldEnd.timeIntervalSince(oldStart)
-        let newEnd = newStart.addingTimeInterval(duration)
-
-        positionedTraining.training.date = newStart
-        positionedTraining.training.endTime = newEnd
-
-        do {
-            try viewContext.save()
-            TrainingUpdateNotifier.shared.notifyUpdate()
-        } catch {
-            print("Ошибка сохранения после перетаскивания: \(error.localizedDescription)")
-        }
-
-        offset = 0
-        originalOffset = 0
-    }
-
-    private func formatTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: date)
+    private func shift(_ date: Date?, by pixels: CGFloat) -> Date? {
+        guard let date = date else { return nil }
+        let minutes = pixels / hourHeight * 60
+        return Calendar.current.date(byAdding: .minute, value: Int(minutes), to: date)
     }
 }
