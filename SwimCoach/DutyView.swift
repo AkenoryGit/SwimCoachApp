@@ -29,3 +29,38 @@ struct DutyView: View {
         .offset(y: positionedDuty.topOffset)
     }
 }
+
+struct DutyBlockView: View {
+    let duty: Duty
+    let topOffset: CGFloat
+    let height: CGFloat
+    let availableWidth: CGFloat
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 8)
+            .fill(Color.orange.opacity(0.7))
+            .frame(width: availableWidth, height: height)
+            .overlay(
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Дежурство")
+                        .font(.caption)
+                        .bold()
+
+                    if let note = duty.note, !note.isEmpty {
+                        Text(note)
+                            .font(.caption2)
+                            .lineLimit(2)
+                    }
+
+                    if let trainer = duty.trainerName, !trainer.isEmpty {
+                        Text("За: \(trainer)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(5)
+            )
+            .offset(x: UIScreen.main.bounds.width - availableWidth, y: topOffset)
+//            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}

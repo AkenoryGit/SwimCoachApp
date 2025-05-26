@@ -25,35 +25,39 @@ struct DayTimelineView: View {
         let _ = refreshTrigger
         let positionedTrainings = calculatePositionedTrainings(from: trainings, hourHeight: hourHeight)
         let positionedDuties = calculatePositionedDuties(from: duties, hourHeight: hourHeight)
-
+        
         ScrollView(.vertical) {
-            HStack(spacing: 0) {
-                // Время
-                VStack(alignment: .trailing, spacing: 0) {
-                    ForEach(6..<24) { hour in
-                        Text(String(format: "%02d:00", hour))
-                            .font(.caption2)
-                            .foregroundColor(.gray)
-                            .frame(height: hourHeight, alignment: .topTrailing)
-                            .padding(.trailing, 4)
+            ZStack(alignment: .topLeading) {
+                // ⬇️ Фон теперь под всем содержимым
+                TimelineBackgroundView(hourHeight: hourHeight)
+                    .frame(maxWidth: .infinity)
+                
+                HStack(spacing: 0) {
+                    // ⬅️ Часы
+                    VStack(alignment: .trailing, spacing: 0) {
+                        ForEach(6..<24) { hour in
+                            Text(String(format: "%02d:00", hour))
+                                .font(.caption2)
+                                .foregroundColor(.gray)
+                                .frame(height: hourHeight, alignment: .topTrailing)
+                                .padding(.trailing, 4)
+                        }
                     }
-                }
-                .frame(width: 50)
-                .padding(.leading, 8)
-
-                // Сетка, линия времени, тренировки и дежурства
-                ZStack(alignment: .topLeading) {
-                    TimelineBackgroundView(hourHeight: hourHeight)
-
-                    if Calendar.current.isDateInToday(selectedDate),
-                       let offset = nowOffset {
-                        Rectangle()
-                            .fill(Color.red)
-                            .frame(height: 1)
-                            .offset(y: offset - 0.5)
-                    }
-
-                    HStack(spacing: 0) {
+                    .frame(width: 50)
+                    .padding(.leading, 10)
+                    
+                    // Расписание (фон + сетка + тренировки)
+                    ZStack(alignment: .topLeading) {
+                        TimelineBackgroundView(hourHeight: hourHeight)
+                        
+                        if Calendar.current.isDateInToday(selectedDate),
+                           let offset = nowOffset {
+                            Rectangle()
+                                .fill(Color.red)
+                                .frame(height: 1)
+                                .offset(y: offset - 0.5)
+                        }
+                        
                         TrainingTimelineLayer(
                             positionedTrainings: positionedTrainings,
                             selectedTraining: $selectedTraining,
@@ -63,16 +67,19 @@ struct DayTimelineView: View {
                                 refreshTrigger = UUID()
                             }
                         )
-                        .frame(width: UIScreen.main.bounds.width * 0.7)
-
-                        DutyTimelineLayer(positionedDuties: positionedDuties)
-                            .frame(width: UIScreen.main.bounds.width * 0.3)
                     }
+                    .frame(width: UIScreen.main.bounds.width * 0.75)
+                    
+                    // Дежурства
+                    ZStack(alignment: .topLeading) {
+                        DutyTimelineLayer(positionedDuties: positionedDuties)
+                    }
+                    .frame(width: UIScreen.main.bounds.width * 0.15) // чуть уже — освобождаем место для центра
                 }
+                .frame(minHeight: CGFloat(18) * hourHeight)
             }
-            .frame(minHeight: CGFloat(18) * hourHeight)
         }
-        .padding(.leading, 88)
+        .padding(.leading, 0)
         .background(Color.white)
         .onReceive(timer) { _ in
             nowOffset = currentTimeOffset()
@@ -128,6 +135,7 @@ struct TimelineBackgroundView: View {
                     .frame(height: hourHeight - 1)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading) // ← это важно
         .background(Color.white)
     }
 }

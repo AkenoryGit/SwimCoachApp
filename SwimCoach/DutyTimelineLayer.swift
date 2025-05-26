@@ -13,10 +13,12 @@ struct DutyTimelineLayer: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             ForEach(positionedDuties) { item in
-                DutyView(positionedDuty: item)
-                    .frame(height: item.height)
-                    .offset(y: item.topOffset)
-                    .padding(.trailing, 8)
+                DutyBlockView(
+                    duty: item.duty,
+                    topOffset: item.topOffset,
+                    height: item.height,
+                    availableWidth: UIScreen.main.bounds.width * 0.3 // ширина всей колонки
+                )
             }
         }
     }

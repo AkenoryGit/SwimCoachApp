@@ -9,11 +9,15 @@ import SwiftUI
 import CoreData
 
 struct EditTrainingView: View {
+    
     @ObservedObject var training: Training
+
+    
+//    @ObservedObject var training: Training
     var onSave: (() -> Void)? = nil
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
-
+    
     @State private var date: Date
     @State private var endTime: Date
     @State private var selectedType: TrainingType
@@ -21,28 +25,31 @@ struct EditTrainingView: View {
     @State private var status: TrainingStatus
     @State private var note: String
     @State private var selectedClients: Set<UUID> = []
+    @State private var selectedTrainer: Trainer? = nil
+    private let allTrainers = mockTrainers
     
-    enum EntryType: String, CaseIterable, Identifiable {
+    enum EntryType: String, CaseIterable, Identifiable, Hashable {
         case training = "Тренировка"
         case duty = "Дежурство"
-
+        
         var id: String { rawValue }
     }
-
-    @State private var entryType: EntryType = .training
-
+    
     // Добавили сохранение исходного статуса
     private let originalStatus: String
-
+    
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \Client.fullName, ascending: true)],
         predicate: NSPredicate(format: "isDeletedClient == NO"),
         animation: .default
     )
     private var activeClients: FetchedResults<Client>
+    
+    @Binding var entryType: EntryType
 
-    init(training: Training, onSave: (() -> Void)? = nil) {
-        self._training = ObservedObject(wrappedValue: training)
+    init(training: Training, entryType: Binding<EntryType>, onSave: (() -> Void)? = nil) {
+        self.training = training
+        self._entryType = entryType
         self._date = State(initialValue: training.date ?? Date())
         self._endTime = State(initialValue: training.endTime ?? Date())
         self._selectedType = State(initialValue: TrainingType(rawValue: training.type ?? "") ?? .personal)
@@ -52,9 +59,9 @@ struct EditTrainingView: View {
         self.originalStatus = training.status ?? "Запланирована"
         self.onSave = onSave
     }
-
+    
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section(header: Text("Тип записи")) {
                     Picker("Тип записи", selection: $entryType) {
@@ -63,8 +70,10 @@ struct EditTrainingView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .onChange(of: entryType) { newValue in
+                        print("📍 Новый тип записи: \(newValue.rawValue)")
+                    }
                 }
-
                 if entryType == .training {
                     Section(header: Text("Тренировка")) {
                         DatePicker("Дата и время", selection: $date)
@@ -74,18 +83,13 @@ struct EditTrainingView: View {
                                 Text(type.rawValue).tag(type)
                             }
                         }
-                        Picker("Локация", selection: $selectedLocation) {
-                            ForEach(TrainingLocation.allCases) { location in
-                                Text(location.rawValue).tag(location)
-                            }
-                        }
                         Picker("Статус", selection: $status) {
                             ForEach(TrainingStatus.allCases, id: \.self) { status in
                                 Text(status.rawValue).tag(status)
                             }
                         }
                     }
-
+                    
                     Section(header: Text("Клиенты")) {
                         ForEach(activeClients) { client in
                             MultipleSelectionRow(
@@ -96,21 +100,38 @@ struct EditTrainingView: View {
                             }
                         }
                     }
-
-                    Section(header: Text("Заметка")) {
-                        ZStack(alignment: .topLeading) {
-                            if note.isEmpty {
-                                Text("Введите заметку...")
-                                    .foregroundColor(.gray)
-                                    .padding(.top, 8)
-                                    .padding(.leading, 5)
+                    
+                } else {
+                    Section(header: Text("Дежурство")) {
+                        DatePicker("Дата и время", selection: $date)
+                        DatePicker("Окончание", selection: $endTime)
+                        Picker("Дежурство за", selection: $selectedTrainer) {
+                            ForEach(allTrainers, id: \.self) { trainer in
+                                Text(trainer.fullName).tag(trainer)
                             }
-                            TextEditor(text: $note)
-                                .frame(height: 100)
+                        }
+                        Picker("Статус", selection: $status) {
+                            ForEach(TrainingStatus.allCases, id: \.self) { status in
+                                Text(status.rawValue).tag(status)
+                            }
                         }
                     }
                 }
+                
+                Section(header: Text("Заметка")) {
+                    ZStack(alignment: .topLeading) {
+                        if note.isEmpty {
+                            Text("Введите заметку...")
+                                .foregroundColor(.gray)
+                                .padding(.top, 8)
+                                .padding(.leading, 5)
+                        }
+                        TextEditor(text: $note)
+                            .frame(height: 100)
+                    }
+                }
             }
+            .id(entryType)
             .navigationTitle("Редактировать")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -123,11 +144,63 @@ struct EditTrainingView: View {
                     }
                 }
             }
+            
             .onAppear {
+                if training.type == "Дежурство" {
+                    entryType = .duty
+                } else {
+                    entryType = .training
+                }
                 loadSelectedClients()
             }
         }
-}
+    }
+    @ViewBuilder
+    private var trainingFormSection: some View {
+        Section(header: Text("Тренировка")) {
+            DatePicker("Дата и время", selection: $date)
+            DatePicker("Окончание", selection: $endTime)
+            Picker("Тип тренировки", selection: $selectedType) {
+                ForEach(TrainingType.allCases) { type in
+                    Text(type.rawValue).tag(type)
+                }
+            }
+            Picker("Статус", selection: $status) {
+                ForEach(TrainingStatus.allCases, id: \.self) { status in
+                    Text(status.rawValue).tag(status)
+                }
+            }
+        }
+
+        Section(header: Text("Клиенты")) {
+            ForEach(activeClients) { client in
+                MultipleSelectionRow(
+                    title: client.fullName ?? "Без имени",
+                    isSelected: selectedClients.contains(client.id ?? UUID())
+                ) {
+                    toggleClientSelection(client)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var dutyFormSection: some View {
+        Section(header: Text("Дежурство")) {
+            DatePicker("Дата и время", selection: $date)
+            DatePicker("Окончание", selection: $endTime)
+            Picker("Дежурство за", selection: $selectedTrainer) {
+                ForEach(allTrainers, id: \.self) { trainer in
+                    Text(trainer.fullName).tag(trainer)
+                }
+            }
+            Picker("Статус", selection: $status) {
+                ForEach(TrainingStatus.allCases, id: \.self) { status in
+                    Text(status.rawValue).tag(status)
+                }
+            }
+        }
+    }
 
     private func toggleClientSelection(_ client: Client) {
         guard let id = client.id else { return }
@@ -150,7 +223,11 @@ struct EditTrainingView: View {
             training.type = "Дежурство"
             training.location = ""
             training.status = status.rawValue
-            training.note = note
+            if let trainer = selectedTrainer {
+                training.note = "[Дежурство за: \(trainer.fullName)] " + note
+            } else {
+                training.note = note
+            }
             training.removeFromClients(training.clients ?? [])
 
             do {

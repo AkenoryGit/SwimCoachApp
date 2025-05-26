@@ -51,7 +51,12 @@ struct SelectedDayTrainingsView: View {
                         .font(.subheadline)
                 } else {
                     ForEach(trainings) { training in
-                        NavigationLink(destination: EditTrainingView(training: training)) {
+                        NavigationLink(destination:
+                            EditTrainingView(
+                                training: training,
+                                entryType: .constant(training.type == "Дежурство" ? .duty : .training)
+                            )
+                        ) {
                             TrainingCardView(training: training)
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {

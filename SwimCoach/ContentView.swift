@@ -9,6 +9,7 @@ import SwiftUI
 import CoreData
 
 struct ContentView: View {
+    
     @Environment(\.managedObjectContext) private var viewContext
     @State private var showingAddClientForm = false
     @AppStorage("didAddTestClient") private var didAddTestClient = false
@@ -54,13 +55,6 @@ struct ContentView: View {
                             Image(systemName: "plus")
                         }
                     }
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button(action: {
-                            showingAddTrainingForm = true
-                        }) {
-                            Image(systemName: "calendar.badge.plus")
-                        }
-                    }
                     ToolbarItem(placement: .bottomBar) {
                         NavigationLink(destination: DeletedClientsView()) {
                             Label("Удалённые", systemImage: "trash")
@@ -83,18 +77,4 @@ struct ContentView: View {
         }
     }
 
-//    private func makeTestTraining() -> PositionedTraining {
-//        let tempContext = NSManagedObjectContext(concurrencyType: .mainQueueConcurrencyType)
-//
-//        let dummyClient = Client(context: tempContext)
-//        dummyClient.fullName = "Тестовый Клиент"
-//
-//        let dummyTraining = Training(context: tempContext)
-//        dummyTraining.type = "Тестовая тренировка"
-//        dummyTraining.date = Date()
-//        dummyTraining.endTime = Calendar.current.date(byAdding: .minute, value: 60, to: Date())
-//        dummyTraining.clients = [dummyClient] as NSSet
-//
-//        return PositionedTraining(training: dummyTraining, topOffset: 100, height: 60)
-//    }
 }

@@ -21,18 +21,38 @@ struct DraggableTrainingView: View {
 
     var body: some View {
         let training = positionedTraining.training
+        let isDuty = training.type == "Дежурство"
         let totalOffset = positionedTraining.topOffset + dragOffset
 
-        TrainingCardView(training: training)
-            .frame(height: positionedTraining.height)
-            .offset(y: totalOffset)
-            .simultaneousGesture(
-                LongPressGesture(minimumDuration: 0.3)
-                    .onEnded { _ in
-                        let generator = UIImpactFeedbackGenerator(style: .medium)
-                        generator.impactOccurred()
-                    }
-            )
+        GeometryReader { geometry in
+            let cardWidth = isDuty ? geometry.size.width * 0.35 : geometry.size.width * 0.9
+            let xOffset = isDuty ? geometry.size.width * 0.55 : 0
+
+            Group {
+                if isDuty {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.orange.opacity(0.7))
+                        .frame(width: cardWidth, height: positionedTraining.height)
+                        .overlay(
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Дежурство")
+                                    .font(.caption)
+                                    .bold()
+
+                                if let note = training.note, !note.isEmpty {
+                                    Text(note)
+                                        .font(.caption2)
+                                        .lineLimit(2)
+                                }
+                            }
+                            .padding(4)
+                        )
+                } else {
+                    TrainingCardView(training: training)
+                        .frame(width: cardWidth, height: positionedTraining.height)
+                }
+            }
+            .offset(x: xOffset, y: totalOffset)
             .gesture(
                 DragGesture()
                     .onChanged { value in
@@ -55,7 +75,7 @@ struct DraggableTrainingView: View {
 
                         do {
                             try viewContext.save()
-                            onTrainingChanged?() 
+                            onTrainingChanged?()
                         } catch {
                             print("❌ Ошибка при сохранении: \(error)")
                         }
@@ -70,10 +90,15 @@ struct DraggableTrainingView: View {
                 }
             }
             .sheet(isPresented: $showEditor) {
-                EditTrainingView(training: training, onSave: {
-                    onTrainingChanged?()
-                })
+                EditTrainingView(
+                    training: training,
+                    entryType: .constant(isDuty ? .duty : .training),
+                    onSave: {
+                        onTrainingChanged?()
+                    }
+                )
             }
+        }
     }
 
     private func shift(_ date: Date?, by pixels: CGFloat) -> Date? {

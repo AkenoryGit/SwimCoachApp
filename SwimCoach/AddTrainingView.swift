@@ -8,6 +8,17 @@
 import SwiftUI
 import CoreData
 
+struct Trainer: Identifiable, Hashable {
+    let id: UUID
+    let fullName: String
+}
+
+let mockTrainers: [Trainer] = [
+    Trainer(id: UUID(), fullName: "Дмитрий Дудник"),
+    Trainer(id: UUID(), fullName: "Иванов Иван"),
+    Trainer(id: UUID(), fullName: "Петров Пётр")
+]
+
 enum NewEntryType: String, CaseIterable, Identifiable {
     case training = "Тренировка"
     case duty = "Дежурство"
@@ -18,6 +29,8 @@ enum NewEntryType: String, CaseIterable, Identifiable {
 struct AddTrainingView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedTrainer: Trainer? = nil
+    private let allTrainers = mockTrainers
 
     // Дата и время тренировки
     @State private var date: Date = {
@@ -67,18 +80,29 @@ struct AddTrainingView: View {
                     .pickerStyle(.segmented)
                 }
                 Section(header: Text("Дата и тип")) {
+                    if entryType == .duty {
+                        Section(header: Text("Дежурство за")) {
+                            Picker("Тренер", selection: $selectedTrainer) {
+                                ForEach(allTrainers, id: \.self) { trainer in
+                                    Text(trainer.fullName).tag(trainer as Trainer?)
+                                }
+                            }
+                        }
+                    }
                     DatePicker("Дата и время", selection: $date)
                         .onChange(of: date) { newDate in
                             endTime = calculateEndTime(for: selectedType.rawValue, startDate: newDate)
                         }
                     DatePicker("Окончание", selection: $endTime)
-                    Picker("Тип тренировки", selection: $selectedType) {
-                        ForEach(TrainingType.allCases) { type in
-                            Text(type.rawValue).tag(type)
+                    if entryType == .training {
+                        Picker("Тип тренировки", selection: $selectedType) {
+                            ForEach(TrainingType.allCases) { type in
+                                Text(type.rawValue).tag(type)
+                            }
                         }
-                    }
-                    .onChange(of: selectedType) { newType in
-                        endTime = calculateEndTime(for: newType.rawValue, startDate: date)
+                        .onChange(of: selectedType) { newType in
+                            endTime = calculateEndTime(for: newType.rawValue, startDate: date)
+                        }
                     }
                     Picker("Статус", selection: $status) {
                         Text("Запланирована").tag("Запланирована")
@@ -87,14 +111,15 @@ struct AddTrainingView: View {
                     }
                 }
 
-                Section(header: Text("Клиенты")) {
-                    ForEach(activeClients) { client in
-
-                        MultipleSelectionRow(
-                            title: client.fullName ?? "Без имени",
-                            isSelected: selectedClients.contains(client.id ?? UUID())
-                        ) {
-                            toggleClientSelection(client)
+                if entryType == .training {
+                    Section(header: Text("Клиенты")) {
+                        ForEach(activeClients) { client in
+                            MultipleSelectionRow(
+                                title: client.fullName ?? "Без имени",
+                                isSelected: selectedClients.contains(client.id ?? UUID())
+                            ) {
+                                toggleClientSelection(client)
+                            }
                         }
                     }
                 }
@@ -117,7 +142,7 @@ struct AddTrainingView: View {
                         saveTraining()
                         dismiss()
                     }
-                    .disabled(selectedClients.isEmpty)
+                    .disabled(entryType == .training && selectedClients.isEmpty)
                 }
             }
         }
@@ -142,26 +167,39 @@ struct AddTrainingView: View {
         newTraining.id = UUID()
         newTraining.date = date
         newTraining.endTime = endTime
-        newTraining.type = selectedType.rawValue
+        newTraining.type = entryType == .duty ? "Дежурство" : selectedType.rawValue
         newTraining.status = status
         newTraining.note = note
 
         
+        if entryType == .duty {
+            let newDuty = Duty(context: viewContext)
+            newDuty.startTime = date
+            newDuty.endTime = endTime
+            newDuty.note = note
+            newDuty.trainerName = selectedTrainer?.fullName
 
-        for client in activeClients {
-            guard let clientID = client.id else { continue }
+            do {
+                try viewContext.save()
+                print("🟠 СОХРАНЕНО ДЕЖУРСТВО: \(newDuty.startTime ?? .distantPast) — \(newDuty.endTime ?? .distantFuture)")
+            } catch {
+                print("Ошибка при сохранении дежурства: \(error.localizedDescription)")
+            }
 
-            // Если этот клиент выбран
-            if selectedClients.contains(clientID) {
-                // Привязываем клиента к тренировке
-                newTraining.addToClients(client)
+            return
+        }
+        if entryType == .training {
+            for client in activeClients {
+                guard let clientID = client.id else { continue }
 
-                // Если тренировка проведена — ищем соответствующий баланс
-                if status == "Проведена",
-                   let balances = client.balances as? Set<TrainingBalance>,
-                   let balance = balances.first(where: { $0.type == selectedType.rawValue && $0.count > 0 }) {
+                if selectedClients.contains(clientID) {
+                    newTraining.addToClients(client)
 
-                    balance.count -= 1
+                    if status == "Проведена",
+                       let balances = client.balances as? Set<TrainingBalance>,
+                       let balance = balances.first(where: { $0.type == selectedType.rawValue && $0.count > 0 }) {
+                        balance.count -= 1
+                    }
                 }
             }
         }
