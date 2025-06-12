@@ -23,6 +23,9 @@ struct BackgroundTimelineLayer: View {
                     Rectangle()
                         .fill(Color.gray.opacity(0.2))
                         .frame(height: 1)
+
+                    Spacer()
+                        .frame(width: 10) // отступ справа
                 }
                 Spacer()
                     .frame(height: hourHeight - 1)

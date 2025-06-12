@@ -6,20 +6,32 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct DutyTimelineLayer: View {
     let positionedDuties: [PositionedDuty]
+    let hourHeight: CGFloat
+    var onDutyTapped: ((Duty) -> Void)? = nil
 
     var body: some View {
+        let _ = print("📦 DutyTimelineLayer отрисовывается. Всего duty: \(positionedDuties.count)")
+
         ZStack(alignment: .topLeading) {
+            Color.clear // Фон прозрачный, чтобы не перекрывать другие слои
             ForEach(positionedDuties) { item in
                 DutyBlockView(
                     duty: item.duty,
                     topOffset: item.topOffset,
                     height: item.height,
-                    availableWidth: UIScreen.main.bounds.width * 0.3 // ширина всей колонки
+                    availableWidth: 40,
+                    onTap: {
+                        onDutyTapped?(item.duty)
+                    }
                 )
+                .offset(y: item.topOffset) // 🔥 ключевой момент
             }
         }
+        .frame(height: hourHeight * 18) // ⬅️ высота совпадает со шкалой времени
     }
 }
+

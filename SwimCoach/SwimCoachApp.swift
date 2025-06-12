@@ -9,17 +9,21 @@ import SwiftUI
 
 @main
 struct SwimCoachApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     let persistenceController = PersistenceController.shared
 
-    init() {
-        TrainingUpdateNotifier.shared.updateStatusesIfNeeded(context: persistenceController.container.viewContext)
-    }
-    
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
-                .environment(\.locale, .init(identifier: "ru_RU")) // 🔽 Добавляем локаль
         }
+    }
+}
+
+class AppDelegate: NSObject, UIApplicationDelegate {
+    static var orientationLock = UIInterfaceOrientationMask.portrait
+
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        return AppDelegate.orientationLock
     }
 }

@@ -35,32 +35,33 @@ struct DutyBlockView: View {
     let topOffset: CGFloat
     let height: CGFloat
     let availableWidth: CGFloat
+    var onTap: (() -> Void)? = nil
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 8)
-            .fill(Color.orange.opacity(0.7))
-            .frame(width: availableWidth, height: height)
-            .overlay(
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Дежурство")
-                        .font(.caption)
-                        .bold()
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Дежурство")
+                .font(.caption)
+                .bold()
 
-                    if let note = duty.note, !note.isEmpty {
-                        Text(note)
-                            .font(.caption2)
-                            .lineLimit(2)
-                    }
+            if let note = duty.note, !note.isEmpty {
+                Text(note)
+                    .font(.caption2)
+                    .lineLimit(2)
+            }
 
-                    if let trainer = duty.trainerName, !trainer.isEmpty {
-                        Text("За: \(trainer)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding(5)
-            )
-            .offset(x: UIScreen.main.bounds.width - availableWidth, y: topOffset)
-//            .frame(maxWidth: .infinity, alignment: .leading)
+            if let trainer = duty.trainerName, !trainer.isEmpty {
+                Text("За: \(trainer)")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(4)
+        .frame(width: availableWidth, height: height)
+        .background(Color.blue.opacity(0.7))
+        .cornerRadius(6)
+        .offset(y: topOffset)
+        .onTapGesture {
+            onTap?()
+        }
     }
 }

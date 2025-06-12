@@ -43,7 +43,6 @@ struct MainTrainingView: View {
 
                     ZStack(alignment: .topLeading) {
                         DayTimelineView(selectedDate: $selectedDate)
-                        DutyLayerView(selectedDate: $selectedDate)
                     }
                     .frame(maxHeight: .infinity)
                 }

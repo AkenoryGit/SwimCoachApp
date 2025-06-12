@@ -163,24 +163,33 @@ struct AddTrainingView: View {
 
     // MARK: — Сохранение тренировки
     private func saveTraining() {
-        let newTraining = Training(context: viewContext)
-        newTraining.id = UUID()
-        newTraining.date = date
-        newTraining.endTime = endTime
-        newTraining.type = entryType == .duty ? "Дежурство" : selectedType.rawValue
-        newTraining.status = status
-        newTraining.note = note
-
-        
         if entryType == .duty {
             let newDuty = Duty(context: viewContext)
-            newDuty.startTime = date
-            newDuty.endTime = endTime
+
+            let calendar = Calendar.current
+            let timezone = TimeZone.current
+
+            // Формируем компоненты даты и времени с учетом локальной временной зоны
+            let day = calendar.startOfDay(for: date)
+
+            let startHour = calendar.component(.hour, from: date)
+            let startMinute = calendar.component(.minute, from: date)
+
+            let endHour = calendar.component(.hour, from: endTime)
+            let endMinute = calendar.component(.minute, from: endTime)
+
+            newDuty.startTime = calendar.date(bySettingHour: startHour, minute: startMinute, second: 0, of: day)
+            newDuty.endTime = calendar.date(bySettingHour: endHour, minute: endMinute, second: 0, of: day)
+
+            // Остальные поля
             newDuty.note = note
             newDuty.trainerName = selectedTrainer?.fullName
+            newDuty.status = status
 
             do {
                 try viewContext.save()
+                print("🕒 FINAL startTime:", newDuty.startTime ?? .distantPast)
+                print("🕒 FINAL endTime:", newDuty.endTime ?? .distantPast)
                 print("🟠 СОХРАНЕНО ДЕЖУРСТВО: \(newDuty.startTime ?? .distantPast) — \(newDuty.endTime ?? .distantFuture)")
             } catch {
                 print("Ошибка при сохранении дежурства: \(error.localizedDescription)")
@@ -188,18 +197,26 @@ struct AddTrainingView: View {
 
             return
         }
-        if entryType == .training {
-            for client in activeClients {
-                guard let clientID = client.id else { continue }
 
-                if selectedClients.contains(clientID) {
-                    newTraining.addToClients(client)
+        // Только если это тренировка
+        let newTraining = Training(context: viewContext)
+        newTraining.id = UUID()
+        newTraining.date = date
+        newTraining.endTime = endTime
+        newTraining.type = selectedType.rawValue
+        newTraining.status = status
+        newTraining.note = note
 
-                    if status == "Проведена",
-                       let balances = client.balances as? Set<TrainingBalance>,
-                       let balance = balances.first(where: { $0.type == selectedType.rawValue && $0.count > 0 }) {
-                        balance.count -= 1
-                    }
+        for client in activeClients {
+            guard let clientID = client.id else { continue }
+
+            if selectedClients.contains(clientID) {
+                newTraining.addToClients(client)
+
+                if status == "Проведена",
+                   let balances = client.balances as? Set<TrainingBalance>,
+                   let balance = balances.first(where: { $0.type == selectedType.rawValue && $0.count > 0 }) {
+                    balance.count -= 1
                 }
             }
         }

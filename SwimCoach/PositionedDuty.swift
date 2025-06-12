@@ -16,22 +16,37 @@ struct PositionedDuty: Identifiable {
 }
 
 func calculatePositionedDuties(from duties: [Duty], hourHeight: CGFloat) -> [PositionedDuty] {
+    var calendar = Calendar.current
+    calendar.timeZone = TimeZone.current
+    print("🟡 calculatePositionedDuties вызвана, всего \(duties.count) дежурств")
+    let minHour: CGFloat = 6
+
     return duties.compactMap { duty in
         guard let start = duty.startTime, let end = duty.endTime else { return nil }
 
-        let calendar = Calendar.current
-        let minHour: CGFloat = 6
+        // Get the start of the day for the duty's date
+        let startOfDay = calendar.startOfDay(for: start)
 
-        let startMinutes = CGFloat(calendar.component(.hour, from: start) * 60 + calendar.component(.minute, from: start))
-        let endMinutes = CGFloat(calendar.component(.hour, from: end) * 60 + calendar.component(.minute, from: end))
+        // Calculate minutes since start of day
+        let componentsStart = calendar.dateComponents([.hour, .minute], from: startOfDay, to: start)
+        let componentsEnd = calendar.dateComponents([.hour, .minute], from: startOfDay, to: end)
 
-        let clampedStart = max(startMinutes, 6 * 60)
+        let startMinutes = CGFloat((componentsStart.hour ?? 0) * 60 + (componentsStart.minute ?? 0))
+        let endMinutes = CGFloat((componentsEnd.hour ?? 0) * 60 + (componentsEnd.minute ?? 0))
+
+        // Clamp to timeline range (6:00 to 23:00)
+        let clampedStart = max(startMinutes, minHour * 60)
         let clampedEnd = min(endMinutes, 23 * 60)
 
         let duration = clampedEnd - clampedStart
         guard duration > 0 else { return nil }
 
-        let topOffset = clampedStart - minHour * 60
-        return PositionedDuty(duty: duty, topOffset: topOffset, height: duration)
+        let minuteHeight = hourHeight / 60.0
+        let topOffset = (clampedStart - minHour * 60) * minuteHeight
+        let height = duration * minuteHeight
+        
+        print("🟡 \(duty.startTime?.formatted() ?? "—") – offset: \(topOffset), height: \(height)")
+
+        return PositionedDuty(duty: duty, topOffset: topOffset, height: height)
     }
 }

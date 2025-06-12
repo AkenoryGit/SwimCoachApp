@@ -140,6 +140,7 @@ struct EditTrainingView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Сохранить") {
                         saveChanges()
+                        onSave?()
                         dismiss()
                     }
                 }

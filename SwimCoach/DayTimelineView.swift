@@ -20,44 +20,30 @@ struct DayTimelineView: View {
     @State private var trainings: [Training] = []
     @State private var refreshTrigger = UUID()
     @State private var duties: [Duty] = []
+    @State private var selectedDuty: Duty?
 
     var body: some View {
         let _ = refreshTrigger
+        let _ = print("♻️ Refresh trigger: \(refreshTrigger)")
         let positionedTrainings = calculatePositionedTrainings(from: trainings, hourHeight: hourHeight)
-        let positionedDuties = calculatePositionedDuties(from: duties, hourHeight: hourHeight)
-        
+        let positionedDuties = makePositionedDuties(from: duties, on: selectedDate, hourHeight: hourHeight)
+
         ScrollView(.vertical) {
-            ZStack(alignment: .topLeading) {
-                // ⬇️ Фон теперь под всем содержимым
-                TimelineBackgroundView(hourHeight: hourHeight)
-                    .frame(maxWidth: .infinity)
-                
-                HStack(spacing: 0) {
-                    // ⬅️ Часы
-                    VStack(alignment: .trailing, spacing: 0) {
-                        ForEach(6..<24) { hour in
-                            Text(String(format: "%02d:00", hour))
-                                .font(.caption2)
-                                .foregroundColor(.gray)
-                                .frame(height: hourHeight, alignment: .topTrailing)
-                                .padding(.trailing, 4)
-                        }
-                    }
-                    .frame(width: 50)
-                    .padding(.leading, 10)
-                    
-                    // Расписание (фон + сетка + тренировки)
+                VStack(spacing: 0) {
                     ZStack(alignment: .topLeading) {
+                        Color.clear
+                            .frame(height: hourHeight / 2) // ← отступ в 30 минут
                         TimelineBackgroundView(hourHeight: hourHeight)
-                        
+
                         if Calendar.current.isDateInToday(selectedDate),
                            let offset = nowOffset {
                             Rectangle()
                                 .fill(Color.red)
                                 .frame(height: 1)
-                                .offset(y: offset - 0.5)
+                                .offset(y: offset - 0.5 + hourHeight / 2) // ← ⚠️ смещаем тоже
+                                .padding(.leading, 60)
                         }
-                        
+
                         TrainingTimelineLayer(
                             positionedTrainings: positionedTrainings,
                             selectedTraining: $selectedTraining,
@@ -67,19 +53,26 @@ struct DayTimelineView: View {
                                 refreshTrigger = UUID()
                             }
                         )
+                        .id(refreshTrigger) 
+                        .padding(.leading, 60)
+                        .offset(y: hourHeight / 2)
+                        .frame(width: UIScreen.main.bounds.width * 0.75)
+                        .frame(height: CGFloat(18) * hourHeight)
+
+                        DutyTimelineLayer(
+                            positionedDuties: positionedDuties,
+                            hourHeight: hourHeight,
+                            onDutyTapped: { duty in
+                                selectedDuty = duty
+                            }
+                        )
+                        .frame(width: 40)
+                        .offset(y: hourHeight / 2)
+                        .offset(x: UIScreen.main.bounds.width * 0.815)
                     }
-                    .frame(width: UIScreen.main.bounds.width * 0.75)
-                    
-                    // Дежурства
-                    ZStack(alignment: .topLeading) {
-                        DutyTimelineLayer(positionedDuties: positionedDuties)
-                    }
-                    .frame(width: UIScreen.main.bounds.width * 0.15) // чуть уже — освобождаем место для центра
+                    .frame(height: CGFloat(18) * hourHeight)
                 }
-                .frame(minHeight: CGFloat(18) * hourHeight)
             }
-        }
-        .padding(.leading, 0)
         .background(Color.white)
         .onReceive(timer) { _ in
             nowOffset = currentTimeOffset()
@@ -96,6 +89,28 @@ struct DayTimelineView: View {
                     }
                 }
         )
+        .onAppear {
+            print("🧩 Duties перед отображением: \(duties.map { "\($0.startTime ?? Date()) — \($0.endTime ?? Date())" })")
+        }
+        .sheet(item: $selectedDuty, onDismiss: {
+            fetchData()
+            refreshTrigger = UUID()  // 💥 форсируем обновление ZStack и его поддеревьев
+        }) { duty in
+            EditDutyView(duty: duty)
+        }
+        .sheet(item: $selectedTraining, onDismiss: {
+            selectedTraining = nil
+        }) { training in
+            EditTrainingView(
+                training: training,
+                entryType: .constant(training.type == "Дежурство" ? .duty : .training),
+                onSave: {
+                    fetchData()
+                    refreshTrigger = UUID()
+                    selectedTraining = nil // ← если нужно точно сбросить
+                }
+            )
+        }
     }
 
     private func fetchData() {
@@ -113,7 +128,18 @@ struct DayTimelineView: View {
 
         do {
             trainings = try viewContext.fetch(trainingRequest)
+            
+            let dutiesFetched = try viewContext.fetch(dutyRequest)
+            for duty in dutiesFetched {
+                print("📘 Дежурство: \(duty.startTime?.formatted() ?? "нет времени") → \(duty.endTime?.formatted() ?? "нет времени")")
+            }
+            duties = dutiesFetched
+            
             duties = try viewContext.fetch(dutyRequest)
+            print("✅ Trainings: \(trainings.count), Duties: \(duties.count)")
+            for d in duties {
+                print("📘 Duty from \(d.startTime) to \(d.endTime)")
+            }
         } catch {
             print("Ошибка при загрузке данных: \(error)")
             trainings = []
@@ -127,16 +153,23 @@ struct TimelineBackgroundView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ForEach(6..<24) { _ in
-                Rectangle()
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(height: 1)
-                Spacer()
-                    .frame(height: hourHeight - 1)
+            ForEach(6..<24) { hour in
+                HStack(spacing: 0) {
+                    Text(String(format: "%02d:00", hour))
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                        .frame(width: 50, alignment: .trailing)
+                        .padding(.trailing, 4)
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(height: 1)
+                        .padding(.trailing, 50)
+                    Spacer()
+                }
+                .frame(height: hourHeight)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading) // ← это важно
-        .background(Color.white)
+        .frame(height: hourHeight * 18) // Важно!
     }
 }
 
@@ -151,29 +184,58 @@ func calculatePositionedTrainings(from trainings: [Training], hourHeight: CGFloa
     return trainings.compactMap { makePositionedTraining(from: $0, hourHeight: hourHeight) }
 }
 
-func makePositionedTraining(from training: Training, hourHeight: CGFloat) -> PositionedTraining? {
-    guard let start = training.date,
-          let end = training.endTime else { return nil }
+func makePositionedDuties(from duties: [Duty], on day: Date, hourHeight: CGFloat) -> [PositionedDuty] {
+    let calendar = Calendar.current
+    let timeZoneOffset = TimeInterval(TimeZone.current.secondsFromGMT(for: day))
 
+    // 6 утра в UTC, потому что даты сохраняются в UTC
+    let sixAMUTC = calendar.date(bySettingHour: 6, minute: 0, second: 0, of: day)!
+
+    return duties.compactMap { duty in
+        guard let start = duty.startTime, let end = duty.endTime else { return nil }
+
+        // Считаем разницу в минутах от 6:00 UTC
+        let startMinutes = CGFloat(start.timeIntervalSince(sixAMUTC)) / 60.0
+        let endMinutes = CGFloat(end.timeIntervalSince(sixAMUTC)) / 60.0
+        let duration = endMinutes - startMinutes
+
+        guard duration > 0 else { return nil }
+
+        // Время сохраняется в UTC, а шкала рисуется от 6:00 локального дня.
+        // Чтобы избежать ошибок из-за таймзоны, считаем смещение от 6:00 UTC напрямую.
+        // Делим offset на 2, чтобы компенсировать визуальный сдвиг (из-за отступа в DayTimelineView).
+        let minuteHeight = hourHeight / 60.0
+        let topOffset = startMinutes * minuteHeight / 2
+        let height = duration * minuteHeight
+
+        print("🟡 \(duty.trainerName ?? "") — offset: \(topOffset), height: \(height)")
+        print("🧪 RAW UTC startTime:", start)
+        print("🧪 RAW UTC endTime:", end)
+
+        return PositionedDuty(duty: duty, topOffset: topOffset, height: height)
+    }
+}
+
+func makePositionedTraining(from training: Training, hourHeight: CGFloat) -> PositionedTraining? {
+    guard let start = training.date, let end = training.endTime else { return nil }
     let calendar = Calendar.current
     let minHour: CGFloat = 6
 
-    let startComponents = calendar.dateComponents([.hour, .minute], from: start)
-    let endComponents = calendar.dateComponents([.hour, .minute], from: end)
+    let startOfDay = calendar.startOfDay(for: start)
+    let componentsStart = calendar.dateComponents([.hour, .minute], from: startOfDay, to: start)
+    let startMinutes = CGFloat((componentsStart.hour ?? 0) * 60 + (componentsStart.minute ?? 0))
+    let componentsEnd = calendar.dateComponents([.hour, .minute], from: startOfDay, to: end)
+    let endMinutes = CGFloat((componentsEnd.hour ?? 0) * 60 + (componentsEnd.minute ?? 0))
 
-    let startTotalMinutes = CGFloat((startComponents.hour ?? 0) * 60 + (startComponents.minute ?? 0))
-    let endTotalMinutes = CGFloat((endComponents.hour ?? 0) * 60 + (endComponents.minute ?? 0))
+    let clampedStart = max(startMinutes, minHour * 60)
+    let clampedEnd = min(endMinutes, 23 * 60)
 
-    let clampedStartMinutes = max(startTotalMinutes, 6 * 60)
-    let clampedEndMinutes = min(endTotalMinutes, 23 * 60)
+    let duration = clampedEnd - clampedStart
+    guard duration > 0 else { return nil }
 
-    let durationMinutes = clampedEndMinutes - clampedStartMinutes
-    guard durationMinutes > 0 else { return nil }
-
-    let topOffset = (clampedStartMinutes - minHour * 60)
-    let height = durationMinutes
-    
-    print("📅 \(training.type ?? "Тип?") — \(training.date ?? .distantPast) ... \(training.endTime ?? .distantFuture)")
+    let minuteHeight = hourHeight / 60.0
+    let topOffset = (clampedStart - minHour * 60) * minuteHeight
+    let height = duration * minuteHeight
 
     return PositionedTraining(training: training, topOffset: topOffset, height: height)
 }

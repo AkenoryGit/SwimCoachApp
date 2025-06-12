@@ -17,7 +17,7 @@ struct DutyLayerView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
-                let positionedDuties = calculatePositionedDuties(from: duties, hourHeight: hourHeight)
+                let positionedDuties = debugCalculatePositionedDuties(from: duties, hourHeight: hourHeight)
 
                 ForEach(positionedDuties) { item in
                     DutyBlockView(
@@ -35,6 +35,11 @@ struct DutyLayerView: View {
         }
         .onAppear(perform: fetchData)
         .onChange(of: selectedDate) { _ in fetchData() }
+    }
+    
+    func debugCalculatePositionedDuties(from duties: [Duty], hourHeight: CGFloat) -> [PositionedDuty] {
+        print("🟡 calculatePositionedDuties вызвана, всего \(duties.count) дежурств")
+        return calculatePositionedDuties(from: duties, hourHeight: hourHeight)
     }
 
     private func fetchData() {

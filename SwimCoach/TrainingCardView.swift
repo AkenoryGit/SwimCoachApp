@@ -64,7 +64,7 @@ struct TrainingCardView: View {
                 Spacer(minLength: 0)
             }
             .padding(4)
-            .background(Color.brown)
+            .background(Color.gray.opacity(0.9))
             .clipShape(RoundedCorners(tr: 12, br: 12))
             .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
         }
