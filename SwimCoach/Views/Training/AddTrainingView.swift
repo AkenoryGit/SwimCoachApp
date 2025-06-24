@@ -92,9 +92,10 @@ struct AddTrainingView: View {
                         }
                     }
                     DatePicker("Дата и время", selection: $date)
-                        .onChange(of: date) { newDate in
-                            endTime = calculateEndTime(for: selectedType.rawValue, startDate: newDate)
+                        .onChange(of: date) {
+                            endTime = calculateEndTime(for: selectedType.rawValue, startDate: date)
                         }
+                        
                     DatePicker("Окончание", selection: $endTime)
                     if entryType == .training {
                         Picker("Тип тренировки", selection: $selectedType) {
@@ -102,9 +103,10 @@ struct AddTrainingView: View {
                                 Text(type.rawValue).tag(type)
                             }
                         }
-                        .onChange(of: selectedType) { newType in
-                            endTime = calculateEndTime(for: newType.rawValue, startDate: date)
+                        .onChange(of: selectedType) {
+                            endTime = calculateEndTime(for: selectedType.rawValue, startDate: date)
                         }
+                        
                         // Добавляем выбор локации тренировки
                         Picker("Локация", selection: $selectedLocation) {
                             ForEach(TrainingLocation.allCases) { location in
@@ -175,7 +177,6 @@ struct AddTrainingView: View {
             let newDuty = Duty(context: viewContext)
 
             let calendar = Calendar.current
-            let timezone = TimeZone.current
 
             // Формируем компоненты даты и времени с учетом локальной временной зоны
             let day = calendar.startOfDay(for: date)

@@ -43,8 +43,8 @@ struct DutyLayerView: View {
         .onAppear { // Вызываем fetchData при появлении представления
             viewModel.fetch(for: selectedDate) // Получаем дежурства для выбранной даты
         }
-        .onChange(of: selectedDate) { newDate in
-            viewModel.fetch(for: newDate) // Обновляем дежурства при изменении выбранной даты
+        .onChange(of: selectedDate, initial: false) { oldValue, newValue in
+            viewModel.fetch(for: newValue) // Обновляем дежурства при изменении выбранной даты
         }
     }
 }

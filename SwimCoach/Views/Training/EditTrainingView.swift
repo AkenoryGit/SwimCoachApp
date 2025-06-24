@@ -71,7 +71,7 @@ struct EditTrainingView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .onChange(of: entryType) { newValue in
+                    .onChange(of: entryType) { _, newValue in
                         print("📍 Новый тип записи: \(newValue.rawValue)")
                     }
                 }
