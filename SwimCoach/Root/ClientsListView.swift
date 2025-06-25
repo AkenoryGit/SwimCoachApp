@@ -1,5 +1,5 @@
 //
-//  ContentView.swift
+//  ClientsListView.swift
 //  SwimCoach
 //
 //  Created by Дмитрий Дудник on 16.05.2025.
@@ -10,7 +10,7 @@ import CoreData
 
 // MARK: - Главный экран со списком клиентов
 
-struct ContentView: View {
+struct ClientsListView: View {
     
     // MARK: - Core Data
     @Environment(\.managedObjectContext) private var viewContext
@@ -65,7 +65,7 @@ struct ContentView: View {
 
                     // Календарь тренировок
                     ToolbarItem(placement: .bottomBar) {
-                        NavigationLink(destination: MainTrainingView()) {
+                        NavigationLink(destination: ScheduleView()) {
                             Label("Календарь", systemImage: "calendar")
                         }
                     }

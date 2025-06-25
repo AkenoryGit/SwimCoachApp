@@ -94,6 +94,7 @@ final class AddTrainingViewModel: ObservableObject {
             let endMinute = calendar.component(.minute, from: endTime)
 
             newDuty.startTime = calendar.date(bySettingHour: startHour, minute: startMinute, second: 0, of: day)
+            newDuty.id = UUID()
             newDuty.endTime = calendar.date(bySettingHour: endHour, minute: endMinute, second: 0, of: day)
             newDuty.note = note
             newDuty.trainerName = selectedTrainer?.fullName

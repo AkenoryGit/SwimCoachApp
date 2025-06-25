@@ -1,5 +1,5 @@
 //
-//  MainTrainingView.swift
+//  ScheduleView.swift
 //  SwimCoach
 //
 //  Created by Дмитрий Дудник on 20.05.2025.
@@ -10,7 +10,7 @@ import CoreData
 
 // MARK: - Главный экран с календарём и таймлайном
 
-struct MainTrainingView: View {
+struct ScheduleView: View {
 
     // MARK: - Состояния и окружение
 

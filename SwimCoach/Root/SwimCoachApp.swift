@@ -23,8 +23,8 @@ struct SwimCoachApp: App {
     var body: some Scene {
         // Это главное окно приложения
         WindowGroup {
-            // Показываем экран ContentView при запуске приложения
-            ContentView()
+            // Показываем экран MainTabView, который является корневым View приложения.
+            MainTabView()
                 // Передаём контекст базы данных внутрь SwiftUI окружения,
                 // чтобы внутри всех View можно было использовать @Environment(\.managedObjectContext)
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)

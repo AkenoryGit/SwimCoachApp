@@ -7,10 +7,18 @@
 
 import Foundation
 
-/// Тип записи: тренировка или дежурство (используется как при создании, так и при редактировании)
+/// Тип записи: тренировка или дежурство (используется при фильтрации, отображении и редактировании)
 enum EntryType: String, CaseIterable, Identifiable {
     case training = "Тренировка"
     case duty = "Дежурство"
 
     var id: String { self.rawValue }
+
+    /// Ключ, который реально сохраняется в Core Data (`training` или `duty`)
+    var storageKey: String {
+        switch self {
+        case .training: return "training"
+        case .duty: return "duty"
+        }
+    }
 }
