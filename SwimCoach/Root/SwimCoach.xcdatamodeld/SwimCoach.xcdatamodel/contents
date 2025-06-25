@@ -12,6 +12,12 @@
         <relationship name="relatedClients" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="Client" inverseName="relatedClients" inverseEntity="Client"/>
         <relationship name="training" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="Training" inverseName="clients" inverseEntity="Training"/>
     </entity>
+    <entity name="CoachData" representedClassName="CoachData" syncable="YES" codeGenerationType="class">
+        <attribute name="fullName" optional="YES" attributeType="String"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="isMarkedDeleted" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="specialty" optional="YES" attributeType="String"/>
+    </entity>
     <entity name="Duty" representedClassName=".Duty" syncable="YES" codeGenerationType="class">
         <attribute name="date" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="endTime" optional="YES" attributeType="Date" usesScalarValueType="NO"/>

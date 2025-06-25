@@ -26,7 +26,7 @@ struct MainTabView: View {
         TabView(selection: $selectedTab) {
 
             // ВКЛАДКА 1 — КЛИЕНТЫ
-            ClientsListView()
+            PeopleListView()
                 .tabItem {
                     Label("Клиенты", systemImage: "person.3")
                 }
