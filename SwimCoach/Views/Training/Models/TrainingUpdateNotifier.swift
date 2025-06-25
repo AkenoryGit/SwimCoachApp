@@ -8,57 +8,64 @@
 import Foundation
 import CoreData
 
-//Это объявление класса TrainingUpdateNotifier, который может быть замечен SwiftUI как наблюдаемый объект (ObservableObject). Это значит, что другие части интерфейса могут «подписаться» на него и реагировать, когда что-то меняется внутри.
-class TrainingUpdateNotifier: ObservableObject {
-    
-//    Это делает класс “одиночкой” (singleton) — можно будет обращаться к нему откуда угодно через TrainingUpdateNotifier.shared.
+// MARK: - Оповещатель об обновлении тренировок (Singleton)
+
+/// Класс, используемый для централизованного оповещения SwiftUI-интерфейса о том, что данные тренировок обновились
+final class TrainingUpdateNotifier: ObservableObject {
+
+    // MARK: - Singleton
+
+    /// Общий экземпляр (singleton) — используется во всём приложении
     static let shared = TrainingUpdateNotifier()
-    
-//    Это переменная, которая говорит SwiftUI, что произошли изменения. Когда она меняется, интерфейс, подписанный на этот объект, обновляется.
+
+    // MARK: - Переменная для отслеживания изменений
+
+    /// Когда переменная меняется, SwiftUI перерисовывает подписанные представления
     @Published var didChange = false
 
-//    Это закрытый инициализатор. Благодаря ему нельзя создать второй экземпляр этого класса — только один, через shared.
+    // MARK: - Приватный инициализатор (запрещает создание других экземпляров)
+
     private init() {}
 
-//    Этот метод просто переключает значение didChange с false на true или наоборот. Это сигнал для интерфейса: «данные обновились, перерисуй экран!»
+    // MARK: - Метод ручного уведомления об изменении данных
+
+    /// Меняет состояние переменной `didChange`, что вызывает обновление UI
     func notifyUpdate() {
         didChange.toggle()
     }
 
-//    Этот метод проверяет тренировки в базе и обновляет их статус, если они уже прошли. Принимает контекст Core Data.
+    // MARK: - Автообновление статуса прошедших тренировок в Core Data
+
+    /// Обновляет статусы всех прошедших тренировок на "Проведена"
     func updateStatusesIfNeeded(context: NSManagedObjectContext) {
-        
-//        Создаём запрос к базе данных, чтобы получить все объекты типа Training.
         let request: NSFetchRequest<Training> = Training.fetchRequest()
-        
-//        Указываем условие: ищем только те тренировки, которые «Запланированы».
+
+        // Фильтруем только "Запланированные" тренировки
         request.predicate = NSPredicate(format: "status == %@", "Запланирована")
 
-//        Пытаемся загрузить эти тренировки из базы. Также сохраняем текущую дату-время.
         do {
             let scheduledTrainings = try context.fetch(request)
             let now = Date()
 
-//            Для каждой запланированной тренировки проверяем: если она уже закончилась (время окончания endTime раньше текущего времени), и если она сегодня или раньше — меняем её статус на «Проведена».
             for training in scheduledTrainings {
                 if let endTime = training.endTime,
                    let date = training.date,
                    endTime < now,
                    Calendar.current.isDate(date, inSameDayAs: now) || date < now {
-                    
+
                     training.status = "Проведена"
                 }
             }
 
-//            Если были изменения — сохраняем их в базу и говорим, что данные обновились, чтобы интерфейс перерисовался.
+            // Сохраняем изменения, если они есть
             if context.hasChanges {
                 try context.save()
                 self.didChange.toggle()
             }
-            
-//            Если что-то пошло не так (например, не удалось сохранить) — выводим ошибку в консоль.
+
         } catch {
             print("Ошибка при обновлении статусов: \(error.localizedDescription)")
         }
     }
 }
+

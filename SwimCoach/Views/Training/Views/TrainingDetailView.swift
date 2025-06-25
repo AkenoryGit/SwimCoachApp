@@ -7,7 +7,12 @@
 
 import SwiftUI
 
+// MARK: - Детальный просмотр тренировки
+
 struct TrainingDetailView: View {
+
+    // MARK: - Окружение и зависимости
+
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
 
@@ -15,8 +20,11 @@ struct TrainingDetailView: View {
 
     @State private var showingDeleteAlert = false
 
+    // MARK: - Основной UI
+
     var body: some View {
         Form {
+            // MARK: - Основная информация
             Section(header: Text("Основное")) {
                 let dateFormatter = Date.FormatStyle.dateTime
                     .locale(Locale(identifier: "ru_RU"))
@@ -31,12 +39,14 @@ struct TrainingDetailView: View {
                 Text("Статус: \(training.status ?? "неизвестно")")
             }
 
+            // MARK: - Заметка, если есть
             if let note = training.note, !note.isEmpty {
                 Section(header: Text("Заметка")) {
                     Text(note)
                 }
             }
 
+            // MARK: - Клиенты, если есть
             if let clients = training.clients as? Set<Client>, !clients.isEmpty {
                 Section(header: Text("Клиенты")) {
                     ForEach(Array(clients), id: \.self) { client in
@@ -63,6 +73,8 @@ struct TrainingDetailView: View {
         }
     }
 
+    // MARK: - Удаление тренировки
+
     private func deleteTraining() {
         viewContext.delete(training)
 
@@ -73,4 +85,4 @@ struct TrainingDetailView: View {
             print("Ошибка при удалении тренировки: \(error.localizedDescription)")
         }
     }
-}
+} 
