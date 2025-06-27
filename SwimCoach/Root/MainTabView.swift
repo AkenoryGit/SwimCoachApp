@@ -32,7 +32,7 @@ struct MainTabView: View {
                 }
                 .tag(Tab.clients)
 
-            // ВКЛАДКА 2 — АНАЛИТИКА
+            // ВКЛАДКА 2 — ТРЕНИРОВКИ
             AllTrainingsView()
                 .tabItem {
                     Label("Тренировки", systemImage: "doc.text")
@@ -40,14 +40,16 @@ struct MainTabView: View {
                 .tag(Tab.analytics)
 
             // ВКЛАДКА 3 — РАСПИСАНИЕ (ГЛАВНАЯ)
-            ScheduleView()
-                .tabItem {
-                    Label("Расписание", systemImage: "calendar")
-                }
-                .tag(Tab.schedule)
+            NavigationStack {
+                NewScheduleView()
+            }
+            .tabItem {
+                Label("Расписание", systemImage: "calendar")
+            }
+            .tag(Tab.schedule)
 
-            // ВКЛАДКА 4 — ШАБЛОНЫ
-            Text("Шаблоны тренировок")
+            // ВКЛАДКА 4 — АНАЛИТИКА
+            Text("Аналитика")
                 .tabItem {
                     Label("Аналитика", systemImage: "chart.bar")
                 }

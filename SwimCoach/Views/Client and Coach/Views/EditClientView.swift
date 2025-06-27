@@ -7,74 +7,71 @@
 
 import SwiftUI
 
-// Эта структура представляет собой экран редактирования клиента
 struct EditClientView: View {
-    @Environment(\.managedObjectContext) private var viewContext // Контекст Core Data для сохранения изменений
-    @Environment(\.dismiss) private var dismiss // Позволяет закрыть модальное окно редактирования
-    
-    @ObservedObject var client: Client // Клиент, который редактируется
-    
-    @State private var fullName: String = "" // ФИО клиента
-    @State private var birthDate: Date = Date() // Дата рождения клиента
-    @State private var phone: String = "" // Номер телефона клиента
-    @State private var notes: String = "" // Примечания клиента
-    
-    var body: some View {
-        NavigationStack { // Используем NavigationStack для навигации
-            Form { // Форма для ввода данных клиента
-                Section(header: Text("Имя")) { // Секция для ввода имени клиента
-                    TextField("Имя", text: $fullName) // Текстовое поле для ввода ФИО
-                        
-                }
-                
-                Section(header: Text("Дата рождения")) { // Секция для ввода даты рождения
-                    DatePicker("Выберите дату", selection: $birthDate, displayedComponents: .date) // Выбор даты
-                        
-                }
-                
-                Section(header: Text("Телефон")) { // Секция для ввода телефона
-                    TextField("Телефон", text: $phone) // Текстовое поле для ввода номера телефона
-                        .keyboardType(.phonePad) // Устанавливаем клавиатуру для ввода номера телефона
-                }
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.managedObjectContext) private var context
 
-                Section(header: Text("Примечания")) { // Секция для ввода примечаний
-                    TextEditor(text: $notes) // Редактор текста для ввода примечаний
-                        .frame(minHeight: 100) // Минимальная высота редактора текста
-                }
-            }
-            .navigationTitle("Редактировать") // Название экрана
-            .toolbar { // Панель инструментов с кнопками
-                ToolbarItem(placement: .confirmationAction) { // Кнопка сохранения
-                    Button("Сохранить") { // Кнопка для сохранения изменений
-                        saveChanges() // Сохраняем изменения клиента
+    @ObservedObject var viewModel: EditClientViewModel
+
+    var body: some View {
+        NavigationStack {
+            GeometryReader { geometry in
+                VStack(spacing: 0) {
+                    Form {
+                        Section(header: Text("Основное")) {
+                            TextField("ФИО", text: $viewModel.fullName)
+
+                            TextField("Телефон", text: Binding(
+                                get: { viewModel.phone },
+                                set: { newValue in
+                                    let filtered = newValue.filter { "+0123456789".contains($0) }
+                                    viewModel.phone = filtered
+                                }
+                            ))
+                            .keyboardType(.phonePad)
+
+                            DatePicker("Дата рождения", selection: $viewModel.birthDate, displayedComponents: .date)
+                            TextField("Примечания", text: $viewModel.notes, axis: .vertical)
+                        }
+
+                        Section(header: Text("Количество тренировок")) {
+                            ForEach(TrainingType.allCases, id: \.self) { type in
+                                TrainingStepperView(
+                                    type: type,
+                                    count: Binding(
+                                        get: { viewModel.trainingCounts[type] ?? 0 },
+                                        set: { viewModel.trainingCounts[type] = $0 }
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
-                ToolbarItem(placement: .cancellationAction) { // Кнопка отмены
-                    Button("Отмена") { // Кнопка для отмены изменений
-                        dismiss() // Закрываем модальное окно редактирования
-                    }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .contentShape(Rectangle()) // Важно: захватывает все касания
+                .onTapGesture {
+                    hideKeyboard()
                 }
             }
-            .onAppear { // При появлении экрана заполняем поля данными клиента
-                fullName = client.fullName ?? "" // ФИО клиента
-                birthDate = client.birthDate ?? Date() // Дата рождения клиента
-                phone = client.phone ?? "" // Номер телефона клиента
-                notes = client.notes ?? "" // Примечания клиента
+            .navigationTitle("Редактировать клиента")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Отмена") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Сохранить") {
+                        viewModel.saveChanges(context: context)
+                        dismiss()
+                    }
+                    .disabled(viewModel.fullName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
             }
         }
     }
 
-    private func saveChanges() { // Функция для сохранения изменений клиента
-        client.fullName = fullName // Сохраняем ФИО клиента
-        client.birthDate = birthDate // Сохраняем дату рождения клиента
-        client.phone = phone // Сохраняем номер телефона клиента
-        client.notes = notes // Сохраняем примечания клиента
-
-        do { // Попытка сохранить изменения в Core Data
-            try viewContext.save() // Сохраняем контекст
-            dismiss() // Закрываем модальное окно редактирования
-        } catch { // вылавнивание ошибки
-            print("Ошибка при сохранении клиента: \(error.localizedDescription)") // вывод сообщения об ошибке при сохарнении клиента
-        }
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }

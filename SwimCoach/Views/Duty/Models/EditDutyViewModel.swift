@@ -35,19 +35,25 @@ class EditDutyViewModel: ObservableObject {
         self.endTime = calendar.date(from: componentsEnd) ?? Date() // инициализируем дату окончания дежурства, если не удалось получить дату, используем текущую
     }
 
-    func save(context: NSManagedObjectContext, dismiss: @escaping () -> Void) { // Функция для сохранения изменений в дежурстве
-        duty.note = note // обновляем заметку
-        duty.startTime = startTime // обновляем время начала
-        duty.endTime = endTime // обновляем время окончания
-        duty.trainerName = selectedTrainer?.fullName // обновляем имя тренера, если выбран
-        duty.status = selectedStatus // обновляем статус дежурства
+    func save(context: NSManagedObjectContext, dismiss: @escaping () -> Void) {
+        guard startTime < endTime else {
+            print("❌ Время начала не может быть позже или равно времени окончания")
+            return
+        }
 
-        do { // сохраняем изменения в контексте
-            try context.save() // попытка сохранить контекст
-            print("✅ Дежурство обновлено") // выводим сообщение об успешном обновлении
-            dismiss() // закрываем текущий экран
-        } catch { // если произошла ошибка при сохранении
-            print("❌ Ошибка при сохранении: \(error.localizedDescription)") // выводим сообщение об ошибке
+        // Функция для сохранения изменений в дежурстве
+        duty.note = note
+        duty.startTime = startTime
+        duty.endTime = endTime
+        duty.trainerName = selectedTrainer?.fullName
+        duty.status = selectedStatus
+
+        do {
+            try context.save()
+            print("✅ Дежурство обновлено")
+            dismiss()
+        } catch {
+            print("❌ Ошибка при сохранении: \(error.localizedDescription)")
         }
     }
 

@@ -7,16 +7,34 @@
 
 import SwiftUI
 
-/// Компонент отображает красную горизонтальную линию, указывающую текущее время на временной шкале.
+/// Горизонтальная красная линия с меткой времени
 struct CurrentTimeIndicatorView: View {
-    let offset: CGFloat          // Смещение по вертикали для текущего времени
-    let hourHeight: CGFloat      // Высота одного часа в пикселях
-
+    let time: Date
+    let yOffset: CGFloat
+    
     var body: some View {
-        Rectangle()
-            .fill(Color.red)                         // Задаём цвет линии — красный
-            .frame(height: 1)                        // Линия толщиной 1 пиксель
-            .offset(y: offset - 0.5 + hourHeight / 2) // Смещение линии вниз на offset с компенсацией
-            .padding(.leading, 60)                   // Отступ слева, чтобы не наезжать на подписи времени
+        ZStack(alignment: .leading) {
+            Rectangle()
+                .fill(Color.red)
+                .frame(height: 2)
+                .padding(.leading, 50) // сместим чуть правее, чтобы не лезло под текст
+                .padding(.trailing, 8) 
+            
+            Text(formattedTime)
+                .font(.caption)
+                .padding(4)
+                .background(Color.red)
+                .foregroundColor(.white)
+                .cornerRadius(6)
+                .padding(.leading, 4)
+                .offset(x: +20)// немного отступа от края
+        }
+        .offset(y: yOffset + 20)
+    }
+    
+    private var formattedTime: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: time)
     }
 }

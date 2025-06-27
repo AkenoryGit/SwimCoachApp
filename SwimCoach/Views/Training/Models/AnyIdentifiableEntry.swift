@@ -50,3 +50,38 @@ enum AnyIdentifiableEntry: Identifiable {
         }
     }
 }
+
+extension AnyIdentifiableEntry {
+    var type: EntryType {
+        switch self {
+        case .training: return .training
+        case .duty: return .duty
+        }
+    }
+
+    var startTime: Date {
+        switch self {
+        case .training(let t): return t.date ?? Date()
+        case .duty(let d): return d.startTime ?? Date()
+        }
+    }
+
+    var endTime: Date {
+        switch self {
+        case .training(let t): return t.endTime ?? Date()
+        case .duty(let d): return d.endTime ?? Date()
+        }
+    }
+
+    func toPositionedEntry() -> PositionedEntry {
+        PositionedEntry(
+            id: self.id,
+            type: self.type,
+            title: self.title,
+            startTime: self.startTime,
+            endTime: self.endTime,
+            yOffset: 0,
+            height: 0   
+        )
+    }
+}

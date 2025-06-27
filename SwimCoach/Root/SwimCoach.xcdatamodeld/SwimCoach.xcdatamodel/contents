@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23788.4" systemVersion="24F74" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
-    <entity name="Client" representedClassName="Client" syncable="YES" codeGenerationType="class">
+    <entity name="Client" representedClassName="Client" syncable="YES">
         <attribute name="birthDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="fullName" optional="YES" attributeType="String"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
@@ -38,7 +38,7 @@
         <attribute name="type" optional="YES" attributeType="String"/>
         <relationship name="clients" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="Client" inverseName="training" inverseEntity="Client"/>
     </entity>
-    <entity name="TrainingBalance" representedClassName="TrainingBalance" syncable="YES" codeGenerationType="class">
+    <entity name="TrainingBalance" representedClassName="TrainingBalance" syncable="YES">
         <attribute name="count" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="type" optional="YES" attributeType="String"/>

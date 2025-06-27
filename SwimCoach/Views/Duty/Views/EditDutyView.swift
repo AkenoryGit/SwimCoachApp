@@ -6,65 +6,126 @@
 //
 
 import SwiftUI
+import CoreData
 
-// Эта структура отвечает за редактирование дежурства
 struct EditDutyView: View {
-    @Environment(\.managedObjectContext) private var viewContext // Контекст Core Data для сохранения изменений
-    @Environment(\.dismiss) private var dismiss // Позволяет закрыть модальное окно
-    @StateObject private var viewModel: EditDutyViewModel // ViewModel для управления состоянием и логикой
+    @Environment(\.managedObjectContext) private var viewContext
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var viewModel: EditDutyViewModel
+    
+    @State private var showTimeErrorAlert = false
+    @State private var timeErrorMessage = ""
 
-    init(duty: Duty) { // Инициализируем ViewModel с переданным дежурством
-        _viewModel = StateObject(wrappedValue: EditDutyViewModel(duty: duty)) // Создаем экземпляр ViewModel с переданным объектом Duty
+    let onSave: () -> Void
+
+    init(duty: Duty, onSave: @escaping () -> Void) {
+        _viewModel = StateObject(wrappedValue: EditDutyViewModel(duty: duty))
+        self.onSave = onSave
+    }
+    
+    init(entryID: UUID, onSave: @escaping () -> Void) {
+        self.onSave = onSave
+        let context = PersistenceController.shared.container.viewContext
+        let request: NSFetchRequest<Duty> = Duty.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", entryID as CVarArg)
+        request.fetchLimit = 1
+
+        if let duty = try? context.fetch(request).first {
+            _viewModel = StateObject(wrappedValue: EditDutyViewModel(duty: duty))
+        } else {
+            let placeholder = Duty(context: context)
+            placeholder.id = entryID
+            placeholder.startTime = Date()
+            placeholder.endTime = Date().addingTimeInterval(3600)
+            _viewModel = StateObject(wrappedValue: EditDutyViewModel(duty: placeholder))
+            print("⚠️ Не удалось найти дежурство с id \(entryID)")
+        }
     }
 
-    var body: some View { // Основной контент экрана
-        VStack(spacing: 20) { // Отступы между элементами
-            Text("Редактирование дежурства") // Заголовок экрана
-                .font(.title2) // Размер шрифта заголовка
-                .bold() // Жирный шрифт для заголовка
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Редактирование дежурства")
+                .font(.title2)
+                .bold()
 
-            TextField("Заметка", text: $viewModel.note) // Поле для ввода заметки
-                .textFieldStyle(.roundedBorder) // Стиль поля ввода с закругленными краями
+            TextField("Заметка", text: $viewModel.note)
+                .textFieldStyle(.roundedBorder)
 
-            DatePicker("Начало", selection: $viewModel.startTime, displayedComponents: [.hourAndMinute]) // Поле для выбора времени начала дежурства
-            DatePicker("Окончание", selection: $viewModel.endTime, displayedComponents: [.hourAndMinute]) // Поле для выбора времени окончания дежурства
+            DatePicker("Начало", selection: $viewModel.startTime, displayedComponents: [.hourAndMinute])
+            DatePicker("Окончание", selection: $viewModel.endTime, displayedComponents: [.hourAndMinute])
 
-            Picker("Дежурство за", selection: $viewModel.selectedTrainer) { // Пикер для выбора тренера, за которого назначено дежурство
-                ForEach(viewModel.allTrainers, id: \.self) { trainer in // Перебираем всех тренеров
-                    Text(trainer.fullName).tag(Optional(trainer)) // Отображаем полное имя тренера и связываем его с выбранным значением
+            Picker("Дежурство за", selection: $viewModel.selectedTrainer) {
+                ForEach(viewModel.allTrainers, id: \.self) { trainer in
+                    Text(trainer.fullName).tag(Optional(trainer))
                 }
             }
-            .pickerStyle(MenuPickerStyle()) // Стиль пикера — выпадающее меню
+            .pickerStyle(MenuPickerStyle())
 
-            if let trainer = viewModel.selectedTrainer { // Если тренер выбран, отображаем его полное имя
-                Text("Выбран: \(trainer.fullName)") // Отображаем выбранного тренера
-                    .font(.caption) // Размер шрифта для выбранного тренера
-                    .foregroundColor(.secondary) // Цвет текста для второстепенной информации
+            if let trainer = viewModel.selectedTrainer {
+                Text("Выбран: \(trainer.fullName)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
 
-            Picker("Статус", selection: $viewModel.selectedStatus) { // Пикер для выбора статуса дежурства
-                ForEach(viewModel.allStatuses, id: \.self) { // Перебираем все доступные статусы
-                    Text($0).tag($0) // Отображаем статус и связываем его с выбранным значением
+            Picker("Статус", selection: $viewModel.selectedStatus) {
+                ForEach(viewModel.allStatuses, id: \.self) {
+                    Text($0).tag($0)
                 }
             }
-            .pickerStyle(SegmentedPickerStyle()) // Устанавливаем стиль отображения Picker'а в виде сегментированного переключателя (как переключатели iOS: "A / B / C")
+            .pickerStyle(SegmentedPickerStyle())
 
-            Spacer() // Добавляет гибкий пустой промежуток. Он отталкивает следующие элементы вниз, обеспечивая вертикальное распределение контента.
+            Spacer()
 
-            Button("Сохранить") { // Кнопка "Сохранить" — при нажатии вызывает метод `save` у viewModel
-                viewModel.save(context: viewContext) { dismiss() } // Сохраняет изменения в контексте Core Data и закрывает модальное окно
+            Button("Сохранить") {
+                let calendar = Calendar.current
+                let startHour = calendar.component(.hour, from: viewModel.startTime)
+                let endHour = calendar.component(.hour, from: viewModel.endTime)
+                let duration = viewModel.endTime.timeIntervalSince(viewModel.startTime)
+
+                if startHour < 6 || endHour > 23 {
+                    showAlert("Время должно быть между 06:00 и 23:00")
+                    return
+                }
+
+                if viewModel.startTime >= viewModel.endTime {
+                    showAlert("Время начала не может быть позже или равно времени окончания")
+                    return
+                }
+
+                if duration < 20 * 60 {
+                    showAlert("Длительность дежурства должна быть не менее 20 минут")
+                    return
+                }
+
+                viewModel.save(context: viewContext) {
+                    onSave()
+                    dismiss()
+                }
             }
-            .buttonStyle(.borderedProminent) // Стиль кнопки — выделенная кнопка с акцентом
-            .padding(.top) // Отступ сверху для кнопки
+            .buttonStyle(.borderedProminent)
+            .padding(.top)
 
-            Button(role: .destructive) { // Кнопка "Удалить дежурство" — при нажатии вызывает метод `delete` у viewModel
-                viewModel.delete(context: viewContext) { dismiss() } // Удаляет дежурство из контекста Core Data и закрывает модальное окно
-            } label: { // Текст кнопки
-                Text("Удалить дежурство").frame(maxWidth: .infinity) // Текст кнопки занимает всю доступную ширину
+            Button(role: .destructive) {
+                viewModel.delete(context: viewContext) {
+                    dismiss()
+                }
+            } label: {
+                Text("Удалить дежурство")
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered) // Стиль кнопки — обычная кнопка с рамкой
-            .padding(.top, 10) // Отступ сверху для кнопки удаления
+            .buttonStyle(.bordered)
+            .padding(.top, 10)
         }
-        .padding() // Отступы вокруг всего контента в VStack
+        .padding()
+        .alert("Ошибка", isPresented: $showTimeErrorAlert) {
+            Button("ОК", role: .cancel) { }
+        } message: {
+            Text(timeErrorMessage)
+        }
+    }
+
+    private func showAlert(_ message: String) {
+        timeErrorMessage = message
+        showTimeErrorAlert = true
     }
 }

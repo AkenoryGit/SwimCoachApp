@@ -62,4 +62,9 @@ class ClientDetailViewModel: ObservableObject {
             print("Ошибка при удалении клиента: \(error.localizedDescription)") // выводим сообщение об ошибке
         }
     }
+    
+    func reload() {
+        // Просто сообщаем SwiftUI, что данные клиента могли измениться
+        objectWillChange.send()
+    }
 }

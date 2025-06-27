@@ -8,31 +8,24 @@
 import SwiftUI
 import CoreData
 
-// MARK: - Экран редактирования тренировки или дежурства
-
 struct EditTrainingView: View {
-
-    // MARK: - Окружение и зависимости
-
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
+    @State private var showTimeErrorAlert = false
+    @State private var timeErrorMessage = ""
 
-    @ObservedObject var viewModel: EditTrainingViewModel
-    var onSave: (() -> Void)? = nil
+    let entryID: UUID
+    let onSave: () -> Void
 
-    // MARK: - Получение активных клиентов из базы
-
+    @StateObject private var viewModel = AddTrainingViewModel() // тот же ViewModel, что и в AddTrainingView
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \Client.fullName, ascending: true)],
         predicate: NSPredicate(format: "isDeletedClient == NO"),
         animation: .default
-    )
-    private var activeClients: FetchedResults<Client>
-
-    // MARK: - Основной UI
+    ) private var activeClients: FetchedResults<Client>
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             Form {
                 // MARK: - Тип записи
                 Section(header: Text("Тип записи")) {
@@ -42,126 +35,114 @@ struct EditTrainingView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .disabled(true) // тип не редактируем
                 }
 
-                // MARK: - Форма тренировки или дежурства
+                // MARK: - Основное
+                Section(header: Text("Дата и параметры")) {
+                    if viewModel.entryType == .duty {
+                        Picker("Дежурство за", selection: $viewModel.selectedTrainer) {
+                            ForEach(mockTrainers, id: \.self) { trainer in
+                                Text(trainer.fullName).tag(Optional(trainer))
+                            }
+                        }
+                    }
+
+                    DatePicker("Начало", selection: $viewModel.date)
+                    DatePicker("Окончание", selection: $viewModel.endTime)
+
+                    if viewModel.entryType == .training {
+                        Picker("Тип тренировки", selection: $viewModel.selectedType) {
+                            ForEach(TrainingType.allCases) { type in
+                                Text(type.rawValue).tag(type)
+                            }
+                        }
+
+                        Picker("Локация", selection: $viewModel.selectedLocation) {
+                            ForEach(TrainingLocation.allCases) { location in
+                                Text(location.rawValue).tag(location)
+                            }
+                        }
+                    }
+
+                    Picker("Статус", selection: $viewModel.status) {
+                        Text("Запланирована").tag("Запланирована")
+                        Text("Проведена").tag("Проведена")
+                        Text("Отменена").tag("Отменена")
+                    }
+                }
+
+                // MARK: - Клиенты
                 if viewModel.entryType == .training {
-                    trainingForm
-                    clientSelectionSection
-                } else {
-                    dutyForm
+                    Section(header: Text("Клиенты")) {
+                        ForEach(activeClients) { client in
+                            MultipleSelectionRow(
+                                title: client.fullName ?? "Без имени",
+                                isSelected: viewModel.selectedClients.contains(client.id ?? UUID())
+                            ) {
+                                viewModel.toggleClientSelection(client)
+                            }
+                        }
+                    }
                 }
 
                 // MARK: - Заметка
                 Section(header: Text("Заметка")) {
-                    ZStack(alignment: .topLeading) {
-                        if viewModel.note.isEmpty {
-                            Text("Введите заметку...")
-                                .foregroundColor(.gray)
-                                .padding(.top, 8)
-                                .padding(.leading, 5)
-                        }
-                        TextEditor(text: $viewModel.note)
-                            .frame(height: 100)
-                    }
+                    TextEditor(text: $viewModel.note)
+                        .frame(height: 100)
                 }
             }
-            .navigationTitle("Редактировать")
+            .navigationTitle("Редактирование")
             .toolbar {
-                // MARK: - Кнопки навигации
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Отмена") { dismiss() }
+                    Button("Отмена") {
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Сохранить") {
-                        viewModel.saveChanges(context: viewContext, clients: activeClients, onSave: onSave)
-                        dismiss()
+                        let calendar = Calendar.current
+                        let startHour = calendar.component(.hour, from: viewModel.date)
+                        let endHour = calendar.component(.hour, from: viewModel.endTime)
+                        let duration = viewModel.endTime.timeIntervalSince(viewModel.date)
+
+                        if startHour < 6 || endHour > 23 {
+                            showTimeErrorAlert("Время должно быть между 06:00 и 23:00")
+                            return
+                        }
+
+                        if viewModel.date >= viewModel.endTime {
+                            showTimeErrorAlert("Время начала не может быть позже или равно времени окончания")
+                            return
+                        }
+
+                        if duration < 20 * 60 {
+                            showTimeErrorAlert("Длительность записи должна быть не менее 20 минут")
+                            return
+                        }
+
+                        viewModel.updateTraining(id: entryID, context: viewContext, activeClients: activeClients) {
+                            onSave()
+                            dismiss()
+                        }
                     }
+                    .disabled(viewModel.selectedClients.isEmpty)
                 }
-                ToolbarItem(placement: .bottomBar) {
-                    Button(role: .destructive) {
-                        viewModel.showDeleteAlert = true
-                    } label: {
-                        Label("Удалить", systemImage: "trash")
-                    }
-                }
-            }
-            .alert("Удалить тренировку?", isPresented: $viewModel.showDeleteAlert) {
-                Button("Удалить", role: .destructive) {
-                    viewModel.deleteTraining(context: viewContext) {
-                        onSave?()
-                        dismiss()
-                    }
-                }
-                Button("Отмена", role: .cancel) { }
             }
             .onAppear {
-                viewModel.loadInitialState(activeClients: activeClients)
+                viewModel.loadTraining(id: entryID, context: viewContext)
             }
+        }
+        .alert("Ошибка", isPresented: $showTimeErrorAlert) {
+            Button("ОК", role: .cancel) { }
+        } message: {
+            Text(timeErrorMessage)
         }
     }
-
-    // MARK: - Подформа для тренировки
-
-    private var trainingForm: some View {
-        Section(header: Text("Тренировка")) {
-            DatePicker("Дата и время", selection: $viewModel.date)
-            DatePicker("Окончание", selection: $viewModel.endTime)
-
-            Picker("Тип тренировки", selection: $viewModel.selectedType) {
-                ForEach(TrainingType.allCases) { type in
-                    Text(type.rawValue).tag(type)
-                }
-            }
-
-            Picker("Бассейн", selection: $viewModel.selectedLocation) {
-                ForEach(TrainingLocation.allCases) { location in
-                    Text(location.rawValue).tag(location)
-                }
-            }
-
-            Picker("Статус", selection: $viewModel.status) {
-                ForEach(TrainingStatus.allCases, id: \.self) { status in
-                    Text(status.rawValue).tag(status)
-                }
-            }
-        }
-    }
-
-    // MARK: - Подформа для дежурства
-
-    private var dutyForm: some View {
-        Section(header: Text("Дежурство")) {
-            DatePicker("Дата и время", selection: $viewModel.date)
-            DatePicker("Окончание", selection: $viewModel.endTime)
-
-            Picker("Дежурство за", selection: $viewModel.selectedTrainer) {
-                ForEach(viewModel.allTrainers, id: \.self) { trainer in
-                    Text(trainer.fullName).tag(Optional(trainer))
-                }
-            }
-
-            Picker("Статус", selection: $viewModel.status) {
-                ForEach(TrainingStatus.allCases, id: \.self) { status in
-                    Text(status.rawValue).tag(status)
-                }
-            }
-        }
-    }
-
-    // MARK: - Секция выбора клиентов
-
-    private var clientSelectionSection: some View {
-        Section(header: Text("Клиенты")) {
-            ForEach(activeClients) { client in
-                MultipleSelectionRow(
-                    title: client.fullName ?? "Без имени",
-                    isSelected: viewModel.selectedClients.contains(client.id ?? UUID())
-                ) {
-                    viewModel.toggleClientSelection(client)
-                }
-            }
-        }
+    
+    private func showTimeErrorAlert(_ message: String) {
+        timeErrorMessage = message
+        showTimeErrorAlert = true
     }
 }
 

@@ -12,6 +12,7 @@ struct ClientDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     @StateObject private var viewModel: ClientDetailViewModel
+    @State private var clientToEdit: Client?
 
     init(client: Client) {
         _viewModel = StateObject(wrappedValue: ClientDetailViewModel(client: client))
@@ -52,7 +53,7 @@ struct ClientDetailView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Редактировать") {
-                        viewModel.showingEditForm = true
+                        clientToEdit = viewModel.client
                     }
                 }
                 ToolbarItem(placement: .bottomBar) {
@@ -69,8 +70,10 @@ struct ClientDetailView: View {
                 }
                 Button("Отмена", role: .cancel) {}
             }
-            .sheet(isPresented: $viewModel.showingEditForm) {
-                EditClientView(client: viewModel.client)
+            .sheet(item: $clientToEdit, onDismiss: {
+                viewModel.reload()
+            }) { client in
+                EditClientView(viewModel: EditClientViewModel(client: client))
             }
         }
     }

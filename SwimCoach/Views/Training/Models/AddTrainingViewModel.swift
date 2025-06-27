@@ -16,6 +16,8 @@ final class AddTrainingViewModel: ObservableObject {
     // MARK: - Опубликованные свойства для привязки к UI
 
     @Published var selectedTrainer: Trainer? = nil
+    @Published var showTimeErrorAlert = false
+    @Published var timeErrorMessage = ""
 
     // Дата и время начала тренировки/дежурства
     @Published var date: Date = Calendar.current.date(bySettingHour: Calendar.current.component(.hour, from: Date()),
@@ -82,6 +84,12 @@ final class AddTrainingViewModel: ObservableObject {
                       dismiss: @escaping () -> Void) {
 
         let calendar = Calendar.current
+        
+        guard date < endTime else {
+            timeErrorMessage = "Время начала не может быть позже или равно времени окончания"
+            showTimeErrorAlert = true
+            return
+        }
 
         // Если создаётся дежурство
         if entryType == .duty {
@@ -141,4 +149,45 @@ final class AddTrainingViewModel: ObservableObject {
             print("Ошибка при сохранении тренировки: \(error.localizedDescription)")
         }
     }
-}  
+    
+    // Загрузка существующей тренировки
+    func loadTraining(id: UUID, context: NSManagedObjectContext) {
+        let request: NSFetchRequest<Training> = Training.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+
+        if let training = try? context.fetch(request).first {
+            self.entryType = .training
+            self.date = training.date ?? Date()
+            self.endTime = training.endTime ?? Date()
+            self.selectedType = TrainingType(rawValue: training.type ?? "") ?? .personal
+            self.selectedLocation = TrainingLocation(rawValue: training.location ?? "") ?? .bigPool
+            self.status = training.status ?? "Запланирована"
+            self.note = training.note ?? ""
+            self.selectedClients = Set(training.clientsArray.map { $0.id ?? UUID() })
+        }
+    }
+
+    // Сохранение обновлений
+    func updateTraining(id: UUID, context: NSManagedObjectContext, activeClients: FetchedResults<Client>, onSave: @escaping () -> Void) {
+        let request: NSFetchRequest<Training> = Training.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+
+        guard let training = try? context.fetch(request).first else { return }
+
+        training.date = self.date
+        training.endTime = self.endTime
+        training.type = self.selectedType.rawValue
+        training.location = self.selectedLocation.rawValue
+        training.status = self.status
+        training.note = self.note
+
+        training.clients = NSSet(array: activeClients.filter { self.selectedClients.contains($0.id ?? UUID()) })
+
+        do {
+            try context.save()
+            onSave()
+        } catch {
+            print("❌ Не удалось сохранить изменения: \(error)")
+        }
+    }
+}

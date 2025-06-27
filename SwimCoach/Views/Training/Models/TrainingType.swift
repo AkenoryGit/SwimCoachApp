@@ -38,4 +38,9 @@ enum TrainingType: String, CaseIterable, Identifiable {
 
     /// Уникальный идентификатор, используется в SwiftUI `Picker`, `ForEach` и т.п.
     var id: String { self.rawValue }
-} 
+    
+    /// Человекочитаемое имя типа тренировки
+    var displayName: String {
+        return self.rawValue
+    }
+}

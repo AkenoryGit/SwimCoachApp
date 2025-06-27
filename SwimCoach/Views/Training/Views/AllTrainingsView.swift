@@ -11,6 +11,8 @@ import CoreData
 // MARK: - Экран всех тренировок и дежурств
 
 struct AllTrainingsView: View {
+    
+    @State private var selectedEntry: PositionedEntry?
 
     // MARK: - Core Data
     @Environment(\.managedObjectContext) private var viewContext
@@ -32,93 +34,117 @@ struct AllTrainingsView: View {
     @State private var selectedItems: Set<UUID> = []
     @State private var showDeleteAlert = false
     @State private var showFilterOptions = false
+    @FocusState private var isSearchFocused: Bool
 
-    // MARK: - Тело
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-
-                // MARK: - Переключатель "Тренировки" / "Дежурства"
-                Picker("Тип", selection: $selectedType) {
-                    Text("Тренировки").tag(EntryType.training)
-                    Text("Дежурства").tag(EntryType.duty)
-                }
-                .pickerStyle(.segmented)
-                .padding()
-
-                // MARK: - Поиск и фильтр
-                HStack {
-                    TextField("Поиск по клиентам", text: $searchText)
-                        .textFieldStyle(.roundedBorder)
-                        .padding(.leading)
-
-                    Button {
-                        showFilterOptions = true
-                    } label: {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
-                            .imageScale(.large)
-                            .padding(.horizontal)
+            ZStack {
+                // MARK: - Прозрачный фон для скрытия клавиатуры
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        isSearchFocused = false
+                        hideKeyboard()
                     }
-                }
-                .padding(.bottom, 8)
 
-                // MARK: - Список или заглушка
-                if filteredEntries.isEmpty {
-                    Spacer()
-                    Text(emptyMessage)
-                        .foregroundColor(.gray)
-                        .font(.subheadline)
-                    Spacer()
-                } else {
-                    List {
-                        ForEach(filteredEntries) { item in
-                            HStack {
-                                // Выбор
-                                if isSelectionMode {
-                                    Image(systemName: selectedItems.contains(item.id) ? "checkmark.circle.fill" : "circle")
-                                        .foregroundColor(.blue)
-                                        .onTapGesture {
-                                            toggleSelection(for: item)
+                VStack(spacing: 0) {
+
+                    // MARK: - Переключатель "Тренировки" / "Дежурства"
+                    Picker("Тип", selection: $selectedType) {
+                        Text("Тренировки").tag(EntryType.training)
+                        Text("Дежурства").tag(EntryType.duty)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding()
+
+                    // MARK: - Поиск и фильтр
+                    HStack {
+                        TextField("Поиск по клиентам", text: $searchText)
+                            .textFieldStyle(.roundedBorder)
+                            .padding(.leading)
+                            .focused($isSearchFocused)
+
+                        Button {
+                            showFilterOptions = true
+                        } label: {
+                            Image(systemName: "line.3.horizontal.decrease.circle")
+                                .imageScale(.large)
+                                .padding(.horizontal)
+                        }
+                    }
+                    .padding(.bottom, 8)
+
+                    // MARK: - Список записей или заглушка
+                    if filteredEntries.isEmpty {
+                        Spacer()
+                        Text(emptyMessage)
+                            .foregroundColor(.gray)
+                            .font(.subheadline)
+                        Spacer()
+                    } else {
+                        List {
+                            ForEach(filteredEntries) { item in
+                                HStack {
+                                    if isSelectionMode {
+                                        Image(systemName: selectedItems.contains(item.id) ? "checkmark.circle.fill" : "circle")
+                                            .foregroundColor(.blue)
+                                            .onTapGesture {
+                                                toggleSelection(for: item)
+                                            }
+                                    }
+
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(formattedDate(item.date))
+                                            .font(.headline)
+                                        Text(item.title)
+                                            .font(.subheadline)
+
+                                        if !item.clientNames.isEmpty {
+                                            Text("Клиенты: \(item.clientNames)")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
                                         }
+                                    }
+                                    .padding(.vertical, 4)
+
+                                    Spacer()
                                 }
-
-                                // Контент
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(formattedDate(item.date))
-                                    Text(item.title)
-                                        .font(.subheadline)
-
-                                    if !item.clientNames.isEmpty {
-                                        Text("Клиенты: \(item.clientNames)")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    if isSelectionMode {
+                                        toggleSelection(for: item)
+                                    } else {
+                                        selectedEntry = item.toPositionedEntry()
                                     }
                                 }
-                                .padding(.vertical, 4)
-
-                                Spacer()
                             }
                         }
+                        .listStyle(.plain)
+                        .simultaneousGesture(
+                            TapGesture().onEnded {
+                                isSearchFocused = false
+                                hideKeyboard()
+                            }
+                        )
                     }
-                    .listStyle(.plain)
-                }
 
-                // MARK: - Панель снизу
-                if isSelectionMode {
-                    HStack {
-                        Button("Удалить", role: .destructive) {
-                            showDeleteAlert = true
+                    // MARK: - Нижняя панель при выборе
+                    if isSelectionMode {
+                        HStack {
+                            Button("Удалить", role: .destructive) {
+                                showDeleteAlert = true
+                            }
+                            .padding()
+
+                            Spacer()
+
+                            Button("Отмена") {
+                                cancelSelection()
+                            }
+                            .padding()
                         }
-                        .padding()
-
-                        Spacer()
-
-                        Button("Отмена") {
-                            cancelSelection()
-                        }
-                        .padding()
+                        .background(Color(.systemGroupedBackground))
                     }
-                    .background(Color(.systemGroupedBackground))
                 }
             }
             .navigationTitle("Все \(selectedType == .training ? "тренировки" : "дежурства")")
@@ -132,8 +158,7 @@ struct AllTrainingsView: View {
                     }
                 }
             }
-            .alert("Удалить выбранные записи?",
-                   isPresented: $showDeleteAlert) {
+            .alert("Удалить выбранные записи?", isPresented: $showDeleteAlert) {
                 Button("Удалить", role: .destructive) {
                     deleteSelectedItems()
                 }
@@ -142,18 +167,12 @@ struct AllTrainingsView: View {
                 Text("Это действие нельзя отменить.")
             }
             .onAppear {
-                // ✅ Обновляем id у старых дежурств
-                let request = NSFetchRequest<Duty>(entityName: "Duty")
-                do {
-                    let allDuties = try viewContext.fetch(request)
-                    for duty in allDuties where duty.id == nil {
-                        duty.id = UUID()
-                    }
-                    try viewContext.save()
-                    print("🔁 Старым дежурствам назначены id")
-                } catch {
-                    print("❌ Ошибка при обновлении старых дежурств: \(error)")
-                }
+                assignIDsToLegacyDuties()
+            }
+        }
+        .sheet(item: $selectedEntry) { entry in
+            EntryDetailView(entry: entry) {
+                selectedEntry = nil
             }
         }
     }
@@ -174,7 +193,7 @@ struct AllTrainingsView: View {
         }
     }
 
-    // MARK: - Удаление
+    // MARK: - Удаление выбранных записей
     private func deleteSelectedItems() {
         withAnimation {
             for id in selectedItems {
@@ -201,7 +220,7 @@ struct AllTrainingsView: View {
         }
     }
 
-    // MARK: - Переключение выбора
+    // MARK: - Переключение выбранности записи
     private func toggleSelection(for item: AnyIdentifiableEntry) {
         if selectedItems.contains(item.id) {
             selectedItems.remove(item.id)
@@ -210,7 +229,7 @@ struct AllTrainingsView: View {
         }
     }
 
-    // MARK: - Отмена выбора
+    // MARK: - Отмена режима выбора
     private func cancelSelection() {
         selectedItems.removeAll()
         isSelectionMode = false
@@ -229,4 +248,24 @@ struct AllTrainingsView: View {
         formatter.locale = Locale(identifier: "ru_RU")
         return formatter.string(from: date)
     }
+
+    // MARK: - Обновление старых дежурств (без id)
+    private func assignIDsToLegacyDuties() {
+        let request = NSFetchRequest<Duty>(entityName: "Duty")
+        do {
+            let allDuties = try viewContext.fetch(request)
+            for duty in allDuties where duty.id == nil {
+                duty.id = UUID()
+            }
+            try viewContext.save()
+            print("🔁 Старым дежурствам назначены id")
+        } catch {
+            print("❌ Ошибка при обновлении старых дежурств: \(error)")
+        }
+    }
+
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
 }
+
