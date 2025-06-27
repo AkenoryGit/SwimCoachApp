@@ -140,7 +140,7 @@ struct AddTrainingView: View {
                         let endHour = calendar.component(.hour, from: viewModel.endTime)
 
                         // 1. Время за пределами допустимого диапазона
-                        if startHour < 6 || endHour > 23 {
+                        if startHour < 6 || endHour < 6 {
                             timeErrorMessage = "Время должно быть между 06:00 и 23:00"
                             showTimeErrorAlert = true
                             return

@@ -66,7 +66,10 @@ struct NewScheduleView: View {
 
                         // 🔴 Красная линия текущего времени
                         if Calendar.current.isDateInToday(selectedDate) {
-                            CurrentTimeIndicatorView(time: currentTime, yOffset: currentTimeYOffset)
+                            let hour = Calendar.current.component(.hour, from: currentTime)
+                            if hour >= 6 && hour < 23 {
+                                CurrentTimeIndicatorView(time: currentTime, yOffset: currentTimeYOffset)
+                            }
                         }
 
                         TrainingDutyTimelineLayer(
@@ -75,7 +78,7 @@ struct NewScheduleView: View {
                         )
                     }
                     .frame(height: 18 * hourHeight)
-                    .padding(.bottom, 80)
+                    .ignoresSafeArea(.container, edges: .bottom)
                 }
                 .onAppear {
                     let currentHour = Calendar.current.component(.hour, from: selectedDate)
