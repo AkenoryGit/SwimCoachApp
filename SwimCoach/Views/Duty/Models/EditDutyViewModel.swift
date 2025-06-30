@@ -9,63 +9,89 @@ import Foundation
 import SwiftUI
 import CoreData
 
-// Эта модель используется для редактирования дежурства
-class EditDutyViewModel: ObservableObject {
-    @Published var note: String // текст заметки
-    @Published var startTime: Date // дата и время начала дежурства
-    @Published var endTime: Date // дата и время окончания дежурства
-    @Published var selectedTrainer: Trainer? // выбранный тренер
-    @Published var selectedStatus: String // статус дежурства (например, "Запланирована", "Проведена", "Отменена")
+/// ViewModel для редактирования существующего дежурства
+final class EditDutyViewModel: ObservableObject {
 
-    let duty: Duty // объект дежурства, который мы редактируем
-    let allTrainers: [Trainer] = mockTrainers // список всех тренеров, доступных для выбора
-    let allStatuses = ["Запланирована", "Проведена", "Отменена"] // список всех возможных статусов дежурства
+    // MARK: - Входные данные
+    let duty: Duty
+    let coaches: FetchedResults<CoachData>
 
-    init(duty: Duty) { // Инициализируем модель с существующим объектом дежурства
-        self.duty = duty // сохраняем ссылку на объект дежурства
-        self.note = duty.note ?? "" // инициализируем текст заметки, если он есть, иначе пустой строкой
-        self.selectedTrainer = mockTrainers.first(where: { $0.fullName == duty.trainerName }) // ищем тренера по имени в списке доступных тренеров
-        self.selectedStatus = duty.status ?? "Запланирована" // инициализируем статус дежурства, если он есть, иначе "Запланирована"
+    // MARK: - Опубликованные свойства для UI
+    @Published var note: String
+    @Published var startTime: Date
+    @Published var endTime: Date
+    @Published var selectedTrainer: CoachData?
+    @Published var selectedStatus: String
+    @Published var trainerSearchText: String = ""
+    @Published var showAllTrainers: Bool = false
+    @Published var showTimeErrorAlert: Bool = false
+    @Published var timeErrorMessage: String = ""
 
-        let calendar = Calendar.current // используем календарь для работы с датами
-        let componentsStart = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: duty.startTime ?? Date()) // получаем компоненты даты и времени начала дежурства
-        let componentsEnd = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: duty.endTime ?? Date()) // получаем компоненты даты и времени окончания дежурства
+    // MARK: - Константы
+    let allStatuses = ["Запланирована", "Проведена"]
 
-        self.startTime = calendar.date(from: componentsStart) ?? Date() // инициализируем дату начала дежурства, если не удалось получить дату, используем текущую
-        self.endTime = calendar.date(from: componentsEnd) ?? Date() // инициализируем дату окончания дежурства, если не удалось получить дату, используем текущую
+    // MARK: - Инициализация
+    init(duty: Duty, coaches: FetchedResults<CoachData>) {
+        self.duty = duty
+        self.coaches = coaches
+        self.note = duty.note ?? ""
+        self.selectedStatus = duty.status ?? "Запланирована"
+        self.startTime = duty.startTime ?? Date()
+        self.endTime = duty.endTime ?? Date().addingTimeInterval(3600)
+        if let name = duty.trainerName {
+            self.selectedTrainer = coaches.first { $0.fullName == name }
+        }
     }
 
-    func save(context: NSManagedObjectContext, dismiss: @escaping () -> Void) {
-        guard startTime < endTime else {
-            print("❌ Время начала не может быть позже или равно времени окончания")
-            return
+    // MARK: - Фильтрация тренеров
+    func filteredTrainers() -> [CoachData] {
+        if trainerSearchText.isEmpty {
+            return Array(coaches)
+        } else {
+            return coaches.filter {
+                $0.fullName?.localizedCaseInsensitiveContains(trainerSearchText) ?? false
+            }
         }
+    }
 
-        // Функция для сохранения изменений в дежурстве
-        duty.note = note
-        duty.startTime = startTime
-        duty.endTime = endTime
-        duty.trainerName = selectedTrainer?.fullName
-        duty.status = selectedStatus
+    // MARK: - Сохранение дежурства
+    func save(context: NSManagedObjectContext, onComplete: @escaping () -> Void) {
+        // Проверка на пересечение дежурств (исключаем текущее)
+        let fetchRequest: NSFetchRequest<Duty> = Duty.fetchRequest()
+        fetchRequest.predicate = NSPredicate(format: "id != %@ AND startTime < %@ AND endTime > %@", duty.id! as CVarArg, endTime as CVarArg, startTime as CVarArg)
 
         do {
+            let overlaps = try context.fetch(fetchRequest)
+            if !overlaps.isEmpty {
+                Task { @MainActor in
+                    self.timeErrorMessage = "Это дежурство пересекается по времени с другим дежурством."
+                    self.showTimeErrorAlert = true
+                }
+                return
+            }
+
+            duty.startTime = startTime
+            duty.endTime = endTime
+            duty.status = selectedStatus
+            duty.note = note
+            duty.trainerName = selectedTrainer?.fullName
+
             try context.save()
-            print("✅ Дежурство обновлено")
-            dismiss()
+            onComplete()
+
         } catch {
-            print("❌ Ошибка при сохранении: \(error.localizedDescription)")
+            print("❌ Ошибка при сохранении дежурства: \(error)")
         }
     }
 
-    func delete(context: NSManagedObjectContext, dismiss: @escaping () -> Void) { // Функция для удаления дежурства
-        context.delete(duty) // удаляем объект дежурства из контекста
-
-        do { // пытаемся сохранить изменения в контексте
-            try context.save() // если сохранение прошло успешно
-            print("🗑️ Дежурство удалено") // выводим сообщение об успешном удалении
-            dismiss() // закрываем текущий экран
-        } catch { // если произошла ошибка при сохранении
-            print("❌ Ошибка при удалении: \(error.localizedDescription)") // выводим сообщение об ошибке
+    // MARK: - Удаление дежурства
+    func delete(context: NSManagedObjectContext, dismiss: @escaping () -> Void) {
+        context.delete(duty)
+        do {
+            try context.save()
+            dismiss()
+        } catch {
+            print("❌ Ошибка при удалении дежурства: \(error.localizedDescription)")
         }
     }
 }

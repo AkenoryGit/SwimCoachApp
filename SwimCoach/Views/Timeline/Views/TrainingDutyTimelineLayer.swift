@@ -16,36 +16,46 @@ struct TrainingDutyTimelineLayer: View {
     @State private var showDetailSheet = false
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            ForEach(entries) { entry in
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(entry.type == .training ? Color.blue.opacity(0.3) : Color.red.opacity(0.3))
-                    .frame(
-                        width: entry.type == .training ? UIScreen.main.bounds.width - 80 : 20,
-                        height: entry.height
-                    )
-                    .overlay(
-                        VStack(alignment: .leading, spacing: 4) {
-                            if entry.type == .training {
-                                Text(entry.title)
-                                    .font(.caption)
-                                    .bold()
-                                Text(timeRangeText(entry: entry))
-                                    .font(.caption2)
+        GeometryReader { geometry in
+            ZStack(alignment: .topLeading) {
+                ForEach(entries) { entry in
+                    if entry.type == .training {
+                        let spacing: CGFloat = 4
+                        let totalColumns = max(entry.totalColumns, 1)
+                        let columnWidth = (geometry.size.width - 70 - spacing * CGFloat(totalColumns - 1)) / CGFloat(totalColumns)
+                        let xOffset = 70 + CGFloat(entry.column) * (columnWidth + spacing)
+
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.blue.opacity(0.3))
+                            .frame(width: columnWidth, height: entry.height)
+                            .overlay(
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(entry.title)
+                                        .font(.caption)
+                                        .bold()
+                                    Text(timeRangeText(entry: entry))
+                                        .font(.caption2)
+                                }
+                                .padding(6)
+                                .foregroundColor(.black),
+                                alignment: .topLeading
+                            )
+                            .offset(x: xOffset, y: entry.yOffset)
+                            .onTapGesture {
+                                selectedEntry = entry
+                                showDetailSheet = true
                             }
-                        }
-                        .padding(6)
-                        .foregroundColor(.black),
-                        alignment: .topLeading
-                    )
-                    .offset(
-                        x: entry.type == .training ? 70 : 5,
-                        y: entry.yOffset
-                    )
-                    .onTapGesture {
-                        selectedEntry = entry
-                        showDetailSheet = true
+                    } else {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.red.opacity(0.3))
+                            .frame(width: 20, height: entry.height)
+                            .offset(x: 5, y: entry.yOffset)
+                            .onTapGesture {
+                                selectedEntry = entry
+                                showDetailSheet = true
+                            }
                     }
+                }
             }
         }
         .sheet(item: $selectedEntry) { entry in

@@ -15,42 +15,50 @@ final class AddTrainingViewModel: ObservableObject {
 
     // MARK: - Опубликованные свойства для привязки к UI
 
-    @Published var selectedTrainer: Trainer? = nil
+    @Published var selectedTrainer: CoachData? = nil
     @Published var showTimeErrorAlert = false
     @Published var timeErrorMessage = ""
+    @Published var showAllClients: Bool = false
 
-    // Дата и время начала тренировки/дежурства
     @Published var date: Date = Calendar.current.date(bySettingHour: Calendar.current.component(.hour, from: Date()),
                                                       minute: 0,
                                                       second: 0,
                                                       of: Date()) ?? Date()
 
-    // Время окончания тренировки/дежурства
     @Published var endTime: Date = Calendar.current.date(byAdding: .minute, value: 50, to: Date()) ?? Date()
-
-    // Тип создаваемой записи (тренировка или дежурство)
     @Published var entryType: EntryType = .training
-
-    // Выбранный тип тренировки (персональная, групповая и т.д.)
     @Published var selectedType: TrainingType = .personal
-
-    // Место проведения тренировки
     @Published var selectedLocation: TrainingLocation = .bigPool
-
-    // Статус тренировки (запланирована, проведена и т.д.)
     @Published var status: String = "Запланирована"
-
-    // Комментарий к записи
     @Published var note: String = ""
-
-    // Множество выбранных клиентов (по ID)
     @Published var selectedClients: Set<UUID> = []
+    @Published var clientSearchText: String = ""
+    @Published var showAllTrainers: Bool = false
+    @Published var trainerSearchText: String = ""
 
     // MARK: - Методы взаимодействия
 
-    /// Переключение клиента в списке выбранных
-    func toggleClientSelection(_ client: Client) {
-        guard let id = client.id else { return }
+    func filteredTrainers(from trainers: FetchedResults<CoachData>) -> [CoachData] {
+        if trainerSearchText.isEmpty {
+            return Array(trainers)
+        } else {
+            return trainers.filter {
+                $0.fullName?.localizedCaseInsensitiveContains(trainerSearchText) ?? false
+            }
+        }
+    }
+
+    func filteredClients(from allClients: FetchedResults<Client>) -> [Client] {
+        if clientSearchText.isEmpty {
+            return Array(allClients)
+        } else {
+            return allClients.filter {
+                $0.fullName?.localizedCaseInsensitiveContains(clientSearchText) ?? false
+            }
+        }
+    }
+
+    func toggleClientSelection(_ id: UUID) {
         if selectedClients.contains(id) {
             selectedClients.remove(id)
         } else {
@@ -58,7 +66,6 @@ final class AddTrainingViewModel: ObservableObject {
         }
     }
 
-    /// Расчёт окончания тренировки на основе типа и времени начала
     func calculateEndTime(for type: String?, startDate: Date) -> Date {
         let duration: Int
         switch type {
@@ -78,32 +85,39 @@ final class AddTrainingViewModel: ObservableObject {
 
     // MARK: - Сохранение данных в Core Data
 
-    /// Сохраняет тренировку или дежурство в базу данных
+    @MainActor
     func saveTraining(context: NSManagedObjectContext,
                       activeClients: FetchedResults<Client>,
+                      activeTrainers: FetchedResults<CoachData>,
                       dismiss: @escaping () -> Void) {
 
         let calendar = Calendar.current
-        
+
         guard date < endTime else {
             timeErrorMessage = "Время начала не может быть позже или равно времени окончания"
             showTimeErrorAlert = true
             return
         }
 
-        // Если создаётся дежурство
         if entryType == .duty {
+            let fetchRequest: NSFetchRequest<Duty> = Duty.fetchRequest()
+            fetchRequest.predicate = NSPredicate(format: "(startTime < %@) AND (endTime > %@)", endTime as CVarArg, date as CVarArg)
+
+            do {
+                let overlappingDuties = try context.fetch(fetchRequest)
+                if !overlappingDuties.isEmpty {
+                    self.timeErrorMessage = "Это дежурство пересекается по времени с другим дежурством."
+                    self.showTimeErrorAlert = true
+                    return
+                }
+            } catch {
+                print("Ошибка при проверке пересечений дежурств: \(error.localizedDescription)")
+            }
+
             let newDuty = Duty(context: context)
-            let day = calendar.startOfDay(for: date)
-
-            let startHour = calendar.component(.hour, from: date)
-            let startMinute = calendar.component(.minute, from: date)
-            let endHour = calendar.component(.hour, from: endTime)
-            let endMinute = calendar.component(.minute, from: endTime)
-
-            newDuty.startTime = calendar.date(bySettingHour: startHour, minute: startMinute, second: 0, of: day)
             newDuty.id = UUID()
-            newDuty.endTime = calendar.date(bySettingHour: endHour, minute: endMinute, second: 0, of: day)
+            newDuty.startTime = date
+            newDuty.endTime = endTime
             newDuty.note = note
             newDuty.trainerName = selectedTrainer?.fullName
             newDuty.status = status
@@ -114,10 +128,10 @@ final class AddTrainingViewModel: ObservableObject {
             } catch {
                 print("Ошибка при сохранении дежурства: \(error.localizedDescription)")
             }
+
             return
         }
 
-        // Если создаётся тренировка
         let newTraining = Training(context: context)
         newTraining.id = UUID()
         newTraining.date = date
@@ -127,7 +141,6 @@ final class AddTrainingViewModel: ObservableObject {
         newTraining.status = status
         newTraining.note = note
 
-        // Привязка клиентов к тренировке и списание занятий
         for client in activeClients {
             guard let clientID = client.id else { continue }
 
@@ -149,8 +162,7 @@ final class AddTrainingViewModel: ObservableObject {
             print("Ошибка при сохранении тренировки: \(error.localizedDescription)")
         }
     }
-    
-    // Загрузка существующей тренировки
+
     func loadTraining(id: UUID, context: NSManagedObjectContext) {
         let request: NSFetchRequest<Training> = Training.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
@@ -167,7 +179,6 @@ final class AddTrainingViewModel: ObservableObject {
         }
     }
 
-    // Сохранение обновлений
     func updateTraining(id: UUID, context: NSManagedObjectContext, activeClients: FetchedResults<Client>, onSave: @escaping () -> Void) {
         let request: NSFetchRequest<Training> = Training.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)

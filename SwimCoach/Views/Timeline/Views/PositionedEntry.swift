@@ -21,4 +21,6 @@ struct PositionedEntry: Identifiable {
     let endTime: Date
     let yOffset: CGFloat
     let height: CGFloat
+    let column: Int
+    let totalColumns: Int
 }

@@ -24,7 +24,7 @@ struct AddEntrySelectorView: View {
             .sheet(isPresented: $showAddEntryView, onDismiss: {
                 onEntryCreated()
             }) {
-                AddTrainingView()
+                AddTrainingView(viewModel: AddTrainingViewModel())
             }
         }
     }

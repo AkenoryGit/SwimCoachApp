@@ -11,80 +11,97 @@ import CoreData
 struct EntryDetailView: View {
     let entry: PositionedEntry
     let onUpdate: () -> Void
-    @Environment(\.dismiss) var dismiss
+    
+    @Environment(\.dismiss) private var dismiss
     @State private var showEditSheet = false
     @State private var confirmDelete = false
+    
+    @FetchRequest(
+        sortDescriptors: [NSSortDescriptor(keyPath: \CoachData.fullName, ascending: true)],
+        predicate: NSPredicate(format: "isMarkedDeleted == NO"),
+        animation: .default
+    ) private var activeCoaches: FetchedResults<CoachData>
 
+    // MARK: - Body
     var body: some View {
         NavigationView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Информация")
-                    .font(.title2.bold())
-                    .padding(.bottom, 4)
-
-                Group {
-                    Text("📌 Тип: \(entry.type == .training ? "Тренировка" : "Дежурство")")
-                    Text("🕒 Время: \(formattedTimeRange)")
-                }
-
-                if entry.type == .training {
-                    // Расширенное отображение тренировки
-                    if let training = fetchTraining(by: entry.id) {
-                        Text("🏷 Название: \(training.type ?? "—")")
-                        Text("📍 Место: \(training.location ?? "—")")
-                        Text("📝 Заметка: \(training.note ?? "—")")
-                        Text("👥 Клиенты: \(training.clientsArray.map { $0.fullName ?? "Без имени" }.joined(separator: ", "))")
-                    }
-                } else {
-                    // Расширенное отображение дежурства
-                    if let duty = fetchDuty(by: entry.id) {
-                        Text("👤 За кого: \(duty.trainerName ?? "—")")
-                        Text("📌 Статус: \(duty.status ?? "—")")
-                        Text("📝 Заметка: \(duty.note ?? "—")")
+            content
+                .padding()
+                .navigationTitle("Информация")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Закрыть") {
+                            dismiss()
+                        }
                     }
                 }
-
-                Spacer()
-
-                Button("Редактировать") {
-                    showEditSheet = true
+                .sheet(isPresented: $showEditSheet) {
+                    editSheetView
                 }
-                .buttonStyle(.bordered)
-
-                Button("Удалить", role: .destructive) {
-                    confirmDelete = true
+                .alert("Удалить запись?", isPresented: $confirmDelete) {
+                    Button("Удалить", role: .destructive) {
+                        deleteEntry()
+                    }
+                    Button("Отмена", role: .cancel) { }
                 }
+        }
+    }
 
+    // MARK: - Контент основной области
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Информация")
+                .font(.title2.bold())
+                .padding(.bottom, 4)
+
+            Group {
+                Text("📌 Тип: \(entry.type == .training ? "Тренировка" : "Дежурство")")
+                Text("🕒 Время: \(formattedTimeRange)")
             }
-            .padding()
-            .navigationTitle("Информация")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Закрыть") {
-                        dismiss()
-                    }
+
+            Group {
+                if entry.type == .training, let training = fetchTraining(by: entry.id) {
+                    Text("Название: \(training.type ?? "—")")
+                    Text("Место: \(training.location ?? "—")")
+                    Text("Заметка: \(training.note ?? "—")")
+                    Text("Клиенты: \(training.clientsArray.map { $0.fullName ?? "Без имени" }.joined(separator: ", "))")
+                } else if let duty = fetchDuty(by: entry.id) {
+                    Text("За кого: \(duty.trainerName ?? "—")")
+                    Text("Статус: \(duty.status ?? "—")")
+                    Text("Заметка: \(duty.note ?? "—")")
                 }
             }
-            .sheet(isPresented: $showEditSheet) {
-                if entry.type == .training {
-                    EditTrainingView(entryID: entry.id) {
-                        onUpdate()
-                    }
-                } else {
-                    EditDutyView(entryID: entry.id) {
-                        onUpdate()
-                    }
-                }
+
+            Spacer()
+
+            Button("Редактировать") {
+                showEditSheet = true
             }
-            .alert("Удалить запись?", isPresented: $confirmDelete) {
-                Button("Удалить", role: .destructive) {
-                    deleteEntry()
-                }
-                Button("Отмена", role: .cancel) { }
+            .buttonStyle(.bordered)
+
+            Button("Удалить", role: .destructive) {
+                confirmDelete = true
             }
         }
     }
-    
+
+    // MARK: - Редактирование
+    @ViewBuilder
+    private var editSheetView: some View {
+        if entry.type == .training {
+            if let training = fetchTraining(by: entry.id) {
+                EditTrainingView(entryID: entry.id, viewModel: EditTrainingViewModel(training: training)) {
+                    onUpdate()
+                }
+            }
+        } else {
+            EditDutyView(entryID: entry.id, coaches: activeCoaches) {
+                onUpdate()
+            }
+        }
+    }
+
+    // MARK: - Вспомогательные функции
     private func fetchTraining(by id: UUID) -> Training? {
         let request: NSFetchRequest<Training> = Training.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
@@ -108,18 +125,13 @@ struct EntryDetailView: View {
     private func deleteEntry() {
         let context = PersistenceController.shared.container.viewContext
 
-        if entry.type == .training {
-            let request: NSFetchRequest<Training> = Training.fetchRequest()
-            request.predicate = NSPredicate(format: "id == %@", entry.id as CVarArg)
-
-            if let training = try? context.fetch(request).first {
+        switch entry.type {
+        case .training:
+            if let training = fetchTraining(by: entry.id) {
                 context.delete(training)
             }
-        } else {
-            let request: NSFetchRequest<Duty> = Duty.fetchRequest()
-            request.predicate = NSPredicate(format: "id == %@", entry.id as CVarArg)
-
-            if let duty = try? context.fetch(request).first {
+        case .duty:
+            if let duty = fetchDuty(by: entry.id) {
                 context.delete(duty)
             }
         }

@@ -98,8 +98,8 @@ struct PeopleListView: View {
         }
     }
 
-    /// Универсальный метод скрытия клавиатуры
-    private func hideKeyboard() {
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-    }
+//    /// Универсальный метод скрытия клавиатуры
+//    private func hideKeyboard() {
+//        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+//    }
 }

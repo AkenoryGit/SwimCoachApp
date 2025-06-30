@@ -70,6 +70,11 @@ struct ClientDetailView: View {
                 }
                 Button("Отмена", role: .cancel) {}
             }
+            .alert("Ошибка", isPresented: $viewModel.showingAlert) {
+                Button("ОК", role: .cancel) { }
+            } message: {
+                Text(viewModel.alertMessage)
+            }
             .sheet(item: $clientToEdit, onDismiss: {
                 viewModel.reload()
             }) { client in

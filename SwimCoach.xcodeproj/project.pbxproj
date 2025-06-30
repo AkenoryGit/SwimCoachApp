@@ -86,11 +86,12 @@
 				};
 			};
 			buildConfigurationList = D09EF19E2DD725AB002335CF /* Build configuration list for PBXProject "SwimCoach" */;
-			developmentRegion = en;
+			developmentRegion = ru;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 				Base,
+				ru,
 			);
 			mainGroup = D09EF19A2DD725AB002335CF;
 			minimizedProjectReferenceProxies = 1;

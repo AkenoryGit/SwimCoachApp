@@ -13,6 +13,8 @@ class ClientDetailViewModel: ObservableObject {
     @Published var client: Client // Модель клиента, которую мы будем отображать и редактировать
     @Published var showingDeleteAlert = false // Флаг для показа предупреждения при удалении клиента
     @Published var showingEditForm = false // Флаг для показа формы редактирования клиента
+    @Published var alertMessage: String = ""
+    @Published var showingAlert: Bool = false
 
     init(client: Client) { // инициализатор принимает объект клиента
         self.client = client // сохраняем его в свойство
@@ -53,13 +55,21 @@ class ClientDetailViewModel: ObservableObject {
         return related.compactMap { $0.fullName } // Возвращаем массив полных имен связанных клиентов
     }
 
-    func deleteClient(context: NSManagedObjectContext, dismiss: @escaping () -> Void) { // Функция для удаления клиента
-        client.isDeletedClient = true // Устанавливаем флаг isDeletedClient в true
-        do { // Пробуем сохранить изменения в контексте
-            try context.save() // Сохраняем контекст
-            dismiss() // Закрываем текущий вид после успешного удаления
-        } catch { // Если произошла ошибка при сохранении
-            print("Ошибка при удалении клиента: \(error.localizedDescription)") // выводим сообщение об ошибке
+    func deleteClient(context: NSManagedObjectContext, dismiss: @escaping () -> Void) {
+        // Проверка: есть ли тренировки у клиента
+        if let trainings = client.training as? Set<Training>, !trainings.isEmpty {
+            // Показываем alert через published свойство
+            alertMessage = "Нельзя удалить клиента, у которого есть тренировки."
+            showingAlert = true
+            return
+        }
+
+        client.isDeletedClient = true
+        do {
+            try context.save()
+            dismiss()
+        } catch {
+            print("Ошибка при удалении клиента: \(error.localizedDescription)")
         }
     }
     

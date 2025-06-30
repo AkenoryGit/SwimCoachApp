@@ -17,11 +17,11 @@ struct SchedulePositionCalculator {
         hourHeight: CGFloat = 60
     ) -> [PositionedEntry] {
         var result: [PositionedEntry] = []
-
         let calendar = Calendar.current
         let startOfDay = calendar.date(bySettingHour: 5, minute: 30, second: 0, of: date)!
         let secondsInHour: CGFloat = 3600
 
+        // MARK: - Добавление дежурств
         for duty in duties {
             guard
                 let start = duty.startTime,
@@ -39,31 +39,106 @@ struct SchedulePositionCalculator {
                 startTime: start,
                 endTime: end,
                 yOffset: offset,
-                height: duration
+                height: duration,
+                column: 0,
+                totalColumns: 1
             ))
         }
 
-        for training in trainings {
-            guard
-                let start = training.date,
-                let end = training.endTime,
-                calendar.isDate(start, inSameDayAs: date)
-            else { continue }
+        // MARK: - Группировка и позиционирование тренировок
+        let dayTrainings = trainings
+            .filter {
+                if let start = $0.date {
+                    return calendar.isDate(start, inSameDayAs: date)
+                }
+                return false
+            }
+            .sorted { ($0.date ?? Date()) < ($1.date ?? Date()) }
 
-            let offset = CGFloat(start.timeIntervalSince(startOfDay)) / secondsInHour * hourHeight
-            let duration = CGFloat(end.timeIntervalSince(start)) / secondsInHour * hourHeight
-
-            result.append(PositionedEntry(
-                id: training.id ?? UUID(),
-                type: .training,
-                title: training.type ?? "Тренировка",
-                startTime: start,
-                endTime: end,
-                yOffset: offset,
-                height: duration
-            ))
+        let overlapGroups = buildOverlapGroups(from: dayTrainings)
+        for group in overlapGroups {
+            buildColumns(for: group, startOfDay: startOfDay, hourHeight: hourHeight, into: &result)
         }
 
         return result
+    }
+
+    // MARK: - Группировка перекрывающихся тренировок
+    private static func buildOverlapGroups(from trainings: [Training]) -> [[Training]] {
+        var groups: [[Training]] = []
+
+        for training in trainings {
+            var matchedGroupIndices: [Int] = []
+
+            for (index, group) in groups.enumerated() {
+                if group.contains(where: { isOverlapping($0, training) }) {
+                    matchedGroupIndices.append(index)
+                }
+            }
+
+            if matchedGroupIndices.isEmpty {
+                groups.append([training])
+            } else {
+                var mergedGroup = [training]
+                for index in matchedGroupIndices.reversed() {
+                    mergedGroup.append(contentsOf: groups.remove(at: index))
+                }
+                groups.append(mergedGroup)
+            }
+        }
+
+        return groups
+    }
+
+    private static func isOverlapping(_ a: Training, _ b: Training) -> Bool {
+        guard let aStart = a.date, let aEnd = a.endTime,
+              let bStart = b.date, let bEnd = b.endTime else { return false }
+
+        return max(aStart, bStart) < min(aEnd, bEnd)
+    }
+
+    // MARK: - Распределение по колонкам
+    private static func buildColumns(
+        for group: [Training],
+        startOfDay: Date,
+        hourHeight: CGFloat,
+        into result: inout [PositionedEntry]
+    ) {
+        var columns: [[Training]] = []
+
+        for training in group {
+            var placed = false
+            for columnIndex in 0..<columns.count {
+                if let last = columns[columnIndex].last, !isOverlapping(last, training) {
+                    columns[columnIndex].append(training)
+                    placed = true
+                    break
+                }
+            }
+            if !placed {
+                columns.append([training])
+            }
+        }
+
+        for (colIndex, column) in columns.enumerated() {
+            for training in column {
+                guard let start = training.date, let end = training.endTime else { continue }
+
+                let offset = CGFloat(start.timeIntervalSince(startOfDay)) / 3600 * hourHeight
+                let duration = CGFloat(end.timeIntervalSince(start)) / 3600 * hourHeight
+
+                result.append(PositionedEntry(
+                    id: training.id ?? UUID(),
+                    type: .training,
+                    title: training.type ?? "Тренировка",
+                    startTime: start,
+                    endTime: end,
+                    yOffset: offset,
+                    height: duration,
+                    column: colIndex,
+                    totalColumns: columns.count
+                ))
+            }
+        }
     }
 }

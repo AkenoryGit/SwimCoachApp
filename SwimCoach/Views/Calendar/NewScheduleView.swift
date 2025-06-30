@@ -109,7 +109,9 @@ struct NewScheduleView: View {
             }
         }
         .sheet(isPresented: $showingAddSheet) {
-            AddTrainingView()
+            NavigationStack {
+                AddTrainingView(viewModel: AddTrainingViewModel())
+            }
         }
         .onChange(of: showingAddSheet) { newValue in
             if newValue == false {

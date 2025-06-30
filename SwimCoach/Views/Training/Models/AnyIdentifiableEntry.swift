@@ -81,7 +81,9 @@ extension AnyIdentifiableEntry {
             startTime: self.startTime,
             endTime: self.endTime,
             yOffset: 0,
-            height: 0   
+            height: 0,
+            column: 0,
+            totalColumns: 1   
         )
     }
 }
