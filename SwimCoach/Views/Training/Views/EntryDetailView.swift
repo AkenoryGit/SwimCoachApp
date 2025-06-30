@@ -61,8 +61,8 @@ struct EntryDetailView: View {
                 .padding(.bottom, 4)
 
             Group {
-                Text("📌 Тип: \(entry.type == .training ? "Тренировка" : "Дежурство")")
-                Text("🕒 Время: \(formattedTimeRange)")
+                Text("Тип: \(entry.type == .training ? "Тренировка" : "Дежурство")")
+                Text("Время: \(formattedTimeRange)")
             }
 
             Group {
@@ -70,7 +70,23 @@ struct EntryDetailView: View {
                     Text("Название: \(training.type ?? "—")")
                     Text("Место: \(training.location ?? "—")")
                     Text("Заметка: \(training.note ?? "—")")
-                    Text("Клиенты: \(training.clientsArray.map { $0.fullName ?? "Без имени" }.joined(separator: ", "))")
+                    
+                    if let typeRaw = training.type,
+                       let trainingType = TrainingType(rawValue: typeRaw),
+                       [.group, .miniGroup, .split].contains(trainingType) {
+                        // Показываем нумерованный список клиентов
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Клиенты:")
+                                .font(.headline)
+                            ForEach(Array(training.clientsArray.enumerated()), id: \.element.id) { index, client in
+                                Text("\(index + 1). \(client.fullName ?? "Без имени")")
+                                    .font(.subheadline)
+                            }
+                        }
+                    } else {
+                        // Показываем как строку через запятую
+                        Text("Клиенты: \(training.clientsArray.map { $0.fullName ?? "Без имени" }.joined(separator: ", "))")
+                    }
                 } else if let duty = fetchDuty(by: entry.id) {
                     Text("За кого: \(duty.trainerName ?? "—")")
                     Text("Статус: \(duty.status ?? "—")")

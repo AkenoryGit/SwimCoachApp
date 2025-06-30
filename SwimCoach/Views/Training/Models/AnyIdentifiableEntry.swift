@@ -83,7 +83,10 @@ extension AnyIdentifiableEntry {
             yOffset: 0,
             height: 0,
             column: 0,
-            totalColumns: 1   
+            totalColumns: 1,
+            trainingType: nil,               // Для дежурств нет типа тренировки
+            location: nil,                   // Для дежурств нет локации
+            clientNames: []                  // Для дежурств нет клиентов
         )
     }
 }

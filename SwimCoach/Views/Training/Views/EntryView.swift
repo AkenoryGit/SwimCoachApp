@@ -185,7 +185,11 @@ struct EntryView: View {
                             await saveEntry()
                         }
                     }
-                    .disabled(viewModel.category == .training && viewModel.selectedClients.isEmpty)
+                    .disabled(
+                        viewModel.category == .training &&
+                        ![.group, .miniGroup, .split].contains(viewModel.selectedType) &&
+                        viewModel.selectedClients.isEmpty
+                    )
                 }
             }
             .alert("Ошибка", isPresented: $viewModel.showTimeErrorAlert) {

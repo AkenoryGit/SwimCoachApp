@@ -7,31 +7,42 @@
 
 import SwiftUI
 
-/// Слой временной шкалы, отображающий блоки тренировок и дежурств
 struct TrainingDutyTimelineLayer: View {
     let entries: [PositionedEntry]
     let onUpdate: () -> Void
-    var onSelectEntry: ((PositionedEntry) -> Void)? = nil  // Добавлено
+    var onSelectEntry: ((PositionedEntry) -> Void)? = nil
 
-    @State private var selectedEntry: PositionedEntry?
-    @State private var showDetailSheet = false
+    let labelWidth: CGFloat = 20  // ширина плашки
+    let spacing: CGFloat = 4
 
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .topLeading) {
                 ForEach(entries) { entry in
                     if entry.type == .training {
-                        let spacing: CGFloat = 4
+                        let extraRightPadding: CGFloat = 25
                         let totalColumns = max(entry.totalColumns, 1)
-                        let columnWidth = (geometry.size.width - 70 - spacing * CGFloat(totalColumns - 1)) / CGFloat(totalColumns)
-                        let xOffset = 70 + CGFloat(entry.column) * (columnWidth + spacing)
+                        let columnWidth = (geometry.size.width - 70 - spacing * CGFloat(totalColumns - 1) - labelWidth - extraRightPadding) / CGFloat(totalColumns)
 
-                        RoundedRectangle(cornerRadius: 8)
+                        let blockXOffset = 70 + CGFloat(entry.column) * (columnWidth + spacing) + labelWidth + 8 // сдвигаем вправо на 8 пикселей
+                        let labelXOffset = blockXOffset - labelWidth
+
+                        // Вертикальное выравнивание плашки — ровно с блоком
+                        let verticalOffsetCorrection: CGFloat = 0
+
+                        if let location = entry.location {
+                            LocationLabelView(location: location, trainingType: entry.trainingType, height: entry.height)
+                                .frame(width: labelWidth, height: entry.height)
+                                .offset(x: labelXOffset, y: entry.yOffset + verticalOffsetCorrection)
+                        }
+
+                        RoundedRectangle(cornerRadius: 0)
                             .fill(Color.blue.opacity(0.3))
                             .frame(width: columnWidth, height: entry.height)
+                            .clipShape(RightRoundedCornersShape(radius: 8))
                             .overlay(
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(entry.title)
+                                    Text(displayTitle(for: entry))
                                         .font(.caption)
                                         .bold()
                                     Text(timeRangeText(entry: entry))
@@ -41,9 +52,9 @@ struct TrainingDutyTimelineLayer: View {
                                 .foregroundColor(.black),
                                 alignment: .topLeading
                             )
-                            .offset(x: xOffset, y: entry.yOffset)
+                            .offset(x: blockXOffset, y: entry.yOffset)
                             .onTapGesture {
-                                onSelectEntry?(entry) // Вызов обработчика выбора записи
+                                onSelectEntry?(entry)
                             }
                     } else {
                         RoundedRectangle(cornerRadius: 8)
@@ -51,7 +62,7 @@ struct TrainingDutyTimelineLayer: View {
                             .frame(width: 20, height: entry.height)
                             .offset(x: 5, y: entry.yOffset)
                             .onTapGesture {
-                                onSelectEntry?(entry) // Вызов обработчика выбора записи
+                                onSelectEntry?(entry)
                             }
                     }
                 }
@@ -63,5 +74,47 @@ struct TrainingDutyTimelineLayer: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
         return "\(formatter.string(from: entry.startTime)) — \(formatter.string(from: entry.endTime))"
+    }
+
+    private func displayTitle(for entry: PositionedEntry) -> String {
+        guard let type = entry.trainingType else { return entry.title }
+
+        switch type {
+        case .split:
+            return "Сплит"
+        case .group:
+            return "Группа"
+        case .miniGroup:
+            return "Мини-группа"
+        default:
+            return entry.clientNames.first ?? type.rawValue
+        }
+    }
+}
+
+struct RoundedCornersShape: Shape {
+    var corners: UIRectCorner
+    var radius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
+        return Path(path.cgPath)
+    }
+}
+
+struct RightRoundedCornersShape: Shape {
+    var radius: CGFloat = 8
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: [.topRight, .bottomRight],
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
+        return Path(path.cgPath)
     }
 }

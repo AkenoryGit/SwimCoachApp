@@ -41,7 +41,10 @@ struct SchedulePositionCalculator {
                 yOffset: offset,
                 height: duration,
                 column: 0,
-                totalColumns: 1
+                totalColumns: 1,
+                trainingType: nil,               // Для дежурств нет типа тренировки
+                location: nil,                   // Для дежурств нет локации
+                clientNames: []                  // Для дежурств нет клиентов
             ))
         }
 
@@ -144,7 +147,10 @@ struct SchedulePositionCalculator {
                     yOffset: offset,
                     height: duration,
                     column: colIndex,
-                    totalColumns: columns.count
+                    totalColumns: columns.count,
+                    trainingType: TrainingType(rawValue: training.type ?? ""),
+                    location: TrainingLocation(rawValue: training.location ?? ""),
+                    clientNames: (training.clients as? Set<Client>)?.compactMap { $0.fullName } ?? []
                 ))
             }
         }

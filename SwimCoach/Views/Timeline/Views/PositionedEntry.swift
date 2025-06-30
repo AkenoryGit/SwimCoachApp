@@ -23,4 +23,8 @@ struct PositionedEntry: Identifiable {
     let height: CGFloat
     let column: Int
     let totalColumns: Int
+    
+    let trainingType: TrainingType?   // nil для дежурств
+    let location: TrainingLocation?   // nil для дежурств
+    let clientNames: [String]         // список ФИО клиентов, пустой для дежурств
 }

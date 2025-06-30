@@ -253,9 +253,9 @@ extension EntryViewModel {
         training.status = status
         training.note = note
 
+        // Добавляем клиентов, если есть выбранные
         for client in activeClients where selectedClients.contains(client.id ?? UUID()) {
             training.addToClients(client)
-            // обновление баланса при статусе "Проведена"
             if status == "Проведена",
                let balances = client.balances as? Set<TrainingBalance>,
                let balance = balances.first(where: { $0.type == selectedType.rawValue && $0.count > 0 }) {
@@ -284,6 +284,8 @@ extension EntryViewModel {
         training.note = note
 
         training.removeFromClients(training.clients ?? [])
+
+        // Просто добавляем выбранных клиентов, если они есть
         for client in activeClients where selectedClients.contains(client.id ?? UUID()) {
             training.addToClients(client)
         }
