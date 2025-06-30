@@ -5,13 +5,6 @@
 //  Created by Дмитрий Дудник on 30.06.2025.
 //
 
-//
-//  EntryView.swift
-//  SwimCoach
-//
-//  Created by Дмитрий Дудник on 30.06.2025.
-//
-
 import SwiftUI
 import CoreData
 
@@ -49,19 +42,36 @@ struct EntryView: View {
                     Section(header: Text("Дата и время")) {
                         DatePicker("Начало", selection: $viewModel.date, displayedComponents: [.date, .hourAndMinute])
                         DatePicker("Окончание", selection: $viewModel.endTime, displayedComponents: [.date, .hourAndMinute])
+                        Picker("Длительность", selection: $viewModel.selectedDuration) {
+                                ForEach(viewModel.possibleDurations, id: \.self) { duration in
+                                    Text("\(duration)")
+                                        .tag(duration)
+                                }
+                            }
+                            .pickerStyle(.segmented) // Или .menu, если много вариантов
                     }
 
                     // Отдельные параметры для тренировки
                     if viewModel.category == .training {
                         Section(header: Text("Тип тренировки")) {
-                            Picker("Тип", selection: $viewModel.selectedType) {
+                            Picker("Тип", selection: Binding(
+                                get: { viewModel.selectedType },
+                                set: { newType in
+                                    viewModel.onTypeOrLocationChanged(type: newType, location: viewModel.selectedLocation)
+                                }
+                            )) {
                                 ForEach(TrainingType.allCases) { type in
                                     Text(type.rawValue).tag(type)
                                 }
                             }
                             .pickerStyle(.menu)
 
-                            Picker("Локация", selection: $viewModel.selectedLocation) {
+                            Picker("Локация", selection: Binding(
+                                get: { viewModel.selectedLocation },
+                                set: { newLocation in
+                                    viewModel.onTypeOrLocationChanged(type: viewModel.selectedType, location: newLocation)
+                                }
+                            )) {
                                 ForEach(TrainingLocation.allCases) { location in
                                     Text(location.rawValue).tag(location)
                                 }

@@ -29,7 +29,11 @@ final class EntryViewModel: ObservableObject {
     private var existingDuty: Duty?
 
     // MARK: - Общие свойства
-    @Published var date: Date = Date()
+    @Published var date: Date = Date() {
+        didSet {
+            updateEndTime()
+        }
+    }
     @Published var endTime: Date = Date().addingTimeInterval(60 * 50)
     @Published var note: String = ""
     @Published var status: String = "Запланирована"
@@ -41,6 +45,14 @@ final class EntryViewModel: ObservableObject {
     @Published var selectedClients: Set<UUID> = []
     @Published var clientSearchText: String = ""
     @Published var showAllClients: Bool = false
+    @Published var selectedDuration: Int = 50 {
+        didSet {
+            updateEndTime()
+        }
+    }
+    
+    // Массив возможных длительностей, можно менять при необходимости
+    let possibleDurations = [30, 45, 50, 55]
 
     // MARK: - Дежурство
     @Published var selectedTrainer: CoachData? = nil
@@ -62,6 +74,7 @@ final class EntryViewModel: ObservableObject {
         self.mode = .edit
         self.category = .training
         self.existingTraining = training
+        self.selectedDuration = Int(training.endTime?.timeIntervalSince(training.date ?? Date()) ?? 3000) / 60
 
         self.date = training.date ?? Date()
         self.endTime = training.endTime ?? Date().addingTimeInterval(60 * 50)
@@ -72,6 +85,15 @@ final class EntryViewModel: ObservableObject {
         if let clients = training.clients as? Set<Client> {
             self.selectedClients = Set(clients.compactMap { $0.id })
         }
+        setupBindings()
+    }
+    
+    init(category: EntryCategory, initialDate: Date = Date()) {
+        self.mode = .create
+        self.category = category
+        self.date = initialDate
+        updateDefaultDuration()
+        updateEndTime()
     }
 
     // MARK: - Инициализация для редактирования дежурства
@@ -98,6 +120,54 @@ final class EntryViewModel: ObservableObject {
                 $0.fullName?.localizedCaseInsensitiveContains(clientSearchText) ?? false
             }
         }
+    }
+    
+    private func updateEndTime() {
+        endTime = date.addingTimeInterval(TimeInterval(selectedDuration * 60))
+    }
+    
+    private func setupBindings() {
+        // Можно использовать Combine, либо через didSet, либо через @Published sink (если подключен Combine)
+        // Для простоты сделаем через didSet в свойствах (потом, если хочешь, можно сделать через Combine)
+
+        // При изменении date или selectedDuration обновлять endTime
+    }
+    
+    func updateDefaultDuration() {
+        // Логика выбора длительности по типу и локации
+        if category == .training {
+            switch selectedType {
+            case .personal:
+                selectedDuration = (selectedLocation == .bigPool) ? 50 : 45
+            case .babyPool:
+                if selectedLocation == .smallPool {
+                    selectedDuration = 30
+                }
+            case .startingTraining:
+                selectedDuration = 45
+            default:
+                selectedDuration = 50
+            }
+        }
+    }
+
+    // Добавим методы для обновления при изменении date и selectedDuration
+
+    func onDateChanged(to newDate: Date) {
+        date = newDate
+        updateEndTime()
+    }
+
+    func onDurationChanged(to newDuration: Int) {
+        selectedDuration = newDuration
+        updateEndTime()
+    }
+
+    func onTypeOrLocationChanged(type: TrainingType, location: TrainingLocation) {
+        selectedType = type
+        selectedLocation = location
+        updateDefaultDuration()
+        updateEndTime()
     }
 
     // Фильтрация тренеров по поисковому тексту

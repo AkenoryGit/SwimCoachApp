@@ -129,7 +129,7 @@ struct NewScheduleView: View {
         // Лист для добавления новой записи
         .sheet(isPresented: $showingAddSheet) {
             NavigationStack {
-                EntryView(viewModel: EntryViewModel(category: .training),
+                EntryView(viewModel: EntryViewModel(category: .training, initialDate: selectedDate),
                           activeClients: activeClients,
                           activeTrainers: activeTrainers,
                           onSave: {
