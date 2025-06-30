@@ -139,7 +139,7 @@ final class EntryViewModel: ObservableObject {
             switch selectedType {
             case .personal:
                 selectedDuration = (selectedLocation == .bigPool) ? 50 : 45
-            case .babyPool:
+            case .infant:
                 if selectedLocation == .smallPool {
                     selectedDuration = 30
                 }

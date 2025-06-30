@@ -28,9 +28,6 @@ enum TrainingType: String, CaseIterable, Identifiable {
     /// Грудничковое плавание (для младенцев)
     case infant = "Грудничковое плавание"
 
-    /// Детский бассейн (для детей 3–6 лет)
-    case babyPool = "Детский бассейн"
-
     /// СПТ — стартовая персональная тренировка
     case startingTraining = "СПТ"
 
