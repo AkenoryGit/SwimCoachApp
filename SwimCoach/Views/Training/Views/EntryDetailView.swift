@@ -21,6 +21,12 @@ struct EntryDetailView: View {
         predicate: NSPredicate(format: "isMarkedDeleted == NO"),
         animation: .default
     ) private var activeCoaches: FetchedResults<CoachData>
+    
+    @FetchRequest(
+        sortDescriptors: [NSSortDescriptor(keyPath: \Client.fullName, ascending: true)],
+        predicate: NSPredicate(format: "isDeletedClient == NO"),
+        animation: .default
+    ) private var activeClients: FetchedResults<Client>
 
     // MARK: - Body
     var body: some View {
@@ -88,15 +94,31 @@ struct EntryDetailView: View {
     // MARK: - Редактирование
     @ViewBuilder
     private var editSheetView: some View {
-        if entry.type == .training {
-            if let training = fetchTraining(by: entry.id) {
-                EditTrainingView(entryID: entry.id, viewModel: EditTrainingViewModel(training: training)) {
-                    onUpdate()
+        NavigationStack {
+            if entry.type == .training {
+                if let training = fetchTraining(by: entry.id) {
+                    EntryView(
+                        viewModel: EntryViewModel(training: training),
+                        activeClients: activeClients,
+                        activeTrainers: activeCoaches,
+                        onSave: {
+                            onUpdate()
+                            showEditSheet = false
+                        }
+                    )
                 }
-            }
-        } else {
-            EditDutyView(entryID: entry.id, coaches: activeCoaches) {
-                onUpdate()
+            } else {
+                if let duty = fetchDuty(by: entry.id) {
+                    EntryView(
+                        viewModel: EntryViewModel(duty: duty),
+                        activeClients: activeClients,
+                        activeTrainers: activeCoaches,
+                        onSave: {
+                            onUpdate()
+                            showEditSheet = false
+                        }
+                    )
+                }
             }
         }
     }

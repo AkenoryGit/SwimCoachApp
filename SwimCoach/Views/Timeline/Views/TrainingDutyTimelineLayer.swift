@@ -11,6 +11,7 @@ import SwiftUI
 struct TrainingDutyTimelineLayer: View {
     let entries: [PositionedEntry]
     let onUpdate: () -> Void
+    var onSelectEntry: ((PositionedEntry) -> Void)? = nil  // Добавлено
 
     @State private var selectedEntry: PositionedEntry?
     @State private var showDetailSheet = false
@@ -42,8 +43,7 @@ struct TrainingDutyTimelineLayer: View {
                             )
                             .offset(x: xOffset, y: entry.yOffset)
                             .onTapGesture {
-                                selectedEntry = entry
-                                showDetailSheet = true
+                                onSelectEntry?(entry) // Вызов обработчика выбора записи
                             }
                     } else {
                         RoundedRectangle(cornerRadius: 8)
@@ -51,15 +51,11 @@ struct TrainingDutyTimelineLayer: View {
                             .frame(width: 20, height: entry.height)
                             .offset(x: 5, y: entry.yOffset)
                             .onTapGesture {
-                                selectedEntry = entry
-                                showDetailSheet = true
+                                onSelectEntry?(entry) // Вызов обработчика выбора записи
                             }
                     }
                 }
             }
-        }
-        .sheet(item: $selectedEntry) { entry in
-            EntryDetailView(entry: entry, onUpdate: onUpdate)
         }
     }
 

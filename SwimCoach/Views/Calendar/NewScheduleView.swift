@@ -14,7 +14,23 @@ struct NewScheduleView: View {
     @State private var positionedEntries: [PositionedEntry] = []
     @State private var showingAddSheet = false
     @State private var currentTime = Date()
+    
+    // Для редактирования выбранной записи
+    @State private var selectedEntry: PositionedEntry? = nil
+    
     let hourHeight: CGFloat = 60
+    
+    @FetchRequest(
+        sortDescriptors: [NSSortDescriptor(keyPath: \Client.fullName, ascending: true)],
+        predicate: NSPredicate(format: "isDeletedClient == NO"),
+        animation: .default
+    ) private var activeClients: FetchedResults<Client>
+
+    @FetchRequest(
+        sortDescriptors: [NSSortDescriptor(keyPath: \CoachData.fullName, ascending: true)],
+        predicate: NSPredicate(format: "isMarkedDeleted == NO"),
+        animation: .default
+    ) private var activeTrainers: FetchedResults<CoachData>
 
     var body: some View {
         VStack(spacing: 0) {
@@ -74,7 +90,10 @@ struct NewScheduleView: View {
 
                         TrainingDutyTimelineLayer(
                             entries: positionedEntries,
-                            onUpdate: updateEntries
+                            onUpdate: updateEntries,
+                            onSelectEntry: { entry in
+                                selectedEntry = entry
+                            }
                         )
                     }
                     .frame(height: 18 * hourHeight)
@@ -87,7 +106,6 @@ struct NewScheduleView: View {
                     }
                     updateEntries()
 
-                    // ⏱️ Таймер на обновление времени каждую минуту
                     Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
                         currentTime = Date()
                     }
@@ -108,14 +126,23 @@ struct NewScheduleView: View {
                 }
             }
         }
+        // Лист для добавления новой записи
         .sheet(isPresented: $showingAddSheet) {
             NavigationStack {
-                AddTrainingView(viewModel: AddTrainingViewModel())
+                EntryView(viewModel: EntryViewModel(category: .training),
+                          activeClients: activeClients,
+                          activeTrainers: activeTrainers,
+                          onSave: {
+                              updateEntries()
+                              showingAddSheet = false
+                          })
             }
         }
-        .onChange(of: showingAddSheet) { newValue in
-            if newValue == false {
+        // Лист для редактирования выбранной записи
+        .sheet(item: $selectedEntry) { entry in
+            EntryDetailView(entry: entry) {
                 updateEntries()
+                selectedEntry = nil
             }
         }
     }

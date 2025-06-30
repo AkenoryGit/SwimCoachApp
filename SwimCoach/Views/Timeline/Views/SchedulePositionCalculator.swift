@@ -127,10 +127,18 @@ struct SchedulePositionCalculator {
                 let offset = CGFloat(start.timeIntervalSince(startOfDay)) / 3600 * hourHeight
                 let duration = CGFloat(end.timeIntervalSince(start)) / 3600 * hourHeight
 
+                // Собираем имена клиентов
+                var clientNames = ""
+                if let clients = training.clients as? Set<Client> {
+                    clientNames = clients
+                        .compactMap { $0.fullName }
+                        .joined(separator: ", ")
+                }
+
                 result.append(PositionedEntry(
                     id: training.id ?? UUID(),
                     type: .training,
-                    title: training.type ?? "Тренировка",
+                    title: clientNames.isEmpty ? (training.type ?? "Тренировка") : clientNames,
                     startTime: start,
                     endTime: end,
                     yOffset: offset,
