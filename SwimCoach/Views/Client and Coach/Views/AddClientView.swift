@@ -20,8 +20,12 @@ struct AddClientView: View { // Форма для добавления ново�
                     TextField("ФИО", text: $viewModel.fullName) // Текстовое поле для ввода ФИО клиента
                     TextField("Телефон", text: $viewModel.phone) // Текстовое поле для ввода номера телефона клиента
                         .keyboardType(.phonePad) // Устанавливаем клавиатуру для ввода номера телефона
-                    DatePicker("Дата рождения", selection: $viewModel.birthDate, displayedComponents: .date) // Выбор даты рождения клиента
-                        .environment(\.locale, Locale(identifier: "ru_RU")) // Устанавливаем локаль для отображения даты
+                    Toggle("Указать дату рождения", isOn: $viewModel.isBirthDateSpecified)
+
+                    if viewModel.isBirthDateSpecified {
+                        DatePicker("Дата рождения", selection: $viewModel.birthDate, displayedComponents: .date)
+                            .environment(\.locale, Locale(identifier: "ru_RU"))
+                    } // Дата-пикер для выбора даты рождения клиента, если флаг isBirthDateSpecified установлен в true
                     TextField("Примечания", text: $viewModel.notes) // Текстовое поле для ввода примечаний о клиенте
                 }
 

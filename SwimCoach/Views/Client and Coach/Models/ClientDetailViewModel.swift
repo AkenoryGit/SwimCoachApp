@@ -15,9 +15,11 @@ class ClientDetailViewModel: ObservableObject {
     @Published var showingEditForm = false // Флаг для показа формы редактирования клиента
     @Published var alertMessage: String = ""
     @Published var showingAlert: Bool = false
+//    @Published var isBirthDateSpecified: Bool = true
 
     init(client: Client) { // инициализатор принимает объект клиента
         self.client = client // сохраняем его в свойство
+//        self.isBirthDateSpecified = client.birthDate != nil
     }
 
     var fullName: String { // Возвращает полное имя клиента, если оно задано, иначе возвращает "Без имени"

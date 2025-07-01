@@ -11,6 +11,7 @@ import CoreData
 // Класс модели представления (ViewModel), который управляет состоянием формы добавления клиента
 class AddClientViewModel: ObservableObject { // ObservableObject позволяет отслеживать изменения и обновлять представление
     @Published var fullName = "" // @Published позволяет SwiftUI автоматически обновлять представление при изменении этих свойств
+    @Published var isBirthDateSpecified: Bool = true
     @Published var phone = "" // Телефон клиента
     @Published var birthDate = Date() // Дата рождения клиента, по умолчанию — текущая дата
     @Published var notes = "" // Примечания к клиенту, например ограничения по здоровью
@@ -31,7 +32,7 @@ class AddClientViewModel: ObservableObject { // ObservableObject позволя�
         newClient.id = UUID() // Генерируем уникальный идентификатор для клиента
         newClient.fullName = fullName // Устанавливаем полное имя клиента
         newClient.phone = phone // Устанавливаем телефон клиента
-        newClient.birthDate = birthDate // Устанавливаем дату рождения клиента
+        newClient.birthDate = isBirthDateSpecified ? birthDate : nil
         newClient.notes = notes // Устанавливаем примечания к клиенту
 
         for (type, count) in trainingCounts where count > 0 { // Перебираем словарь trainingCounts
