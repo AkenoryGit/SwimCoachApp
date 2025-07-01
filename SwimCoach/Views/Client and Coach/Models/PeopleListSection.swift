@@ -12,33 +12,48 @@ extension PeopleListView {
     // MARK: - Секция со списком или сообщением об отсутствии данных
     var peopleListSection: some View {
         Group {
-            if filteredItems.isEmpty {
-                VStack {
-                    Spacer()
-                    Text(selectedTab == .clients ? "Нет удалённых клиентов" : "Нет удалённых тренеров")
-                        .foregroundColor(.secondary)
-                        .font(.title3)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(.systemGroupedBackground))
+            if selectedTab == .clients && filteredClients.isEmpty {
+                emptyPlaceholder(text: "Нет удалённых клиентов")
+            } else if selectedTab == .coaches && filteredCoaches.isEmpty {
+                emptyPlaceholder(text: "Нет удалённых тренеров")
             } else {
                 List {
-                    ForEach(filteredItems, id: \.0) { (id, name) in
-                        PersonRowView(
-                            name: name,
-                            isSelected: isSelected(id: id),
-                            isSelectionMode: isSelectionMode,
-                            isDeletedList: showDeletedPeople
-                        )
-                        .onTapGesture {
-                            if isSelectionMode {
-                                toggleSelection(id: id)
-                            } else {
-                                if selectedTab == .clients {
-                                    selectedClient = allClients.first { $0.id == id }
+                    if selectedTab == .clients {
+                        ForEach(filteredClients) { client in
+                            let id = client.id ?? UUID()
+                            let name = client.fullName ?? "Без имени"
+                            let ageString = client.age().map { ", \($0) лет" } ?? ""
+                            
+                            PersonRowView(
+                                name: name + ageString,
+                                isSelected: isSelected(id: id),
+                                isSelectionMode: isSelectionMode,
+                                isDeletedList: showDeletedPeople
+                            )
+                            .onTapGesture {
+                                if isSelectionMode {
+                                    toggleSelection(id: id)
                                 } else {
-                                    selectedCoach = allCoaches.first { $0.id == id }
+                                    selectedClient = client
+                                }
+                            }
+                        }
+                    } else {
+                        ForEach(filteredCoaches) { coach in
+                            let id = coach.id ?? UUID()
+                            let name = coach.fullName ?? "Без имени"
+                            
+                            PersonRowView(
+                                name: name,
+                                isSelected: isSelected(id: id),
+                                isSelectionMode: isSelectionMode,
+                                isDeletedList: showDeletedPeople
+                            )
+                            .onTapGesture {
+                                if isSelectionMode {
+                                    toggleSelection(id: id)
+                                } else {
+                                    selectedCoach = coach
                                 }
                             }
                         }
@@ -48,4 +63,17 @@ extension PeopleListView {
             }
         }
     }
+}
+
+@ViewBuilder
+private func emptyPlaceholder(text: String) -> some View {
+    VStack {
+        Spacer()
+        Text(text)
+            .foregroundColor(.secondary)
+            .font(.title3)
+        Spacer()
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(Color(.systemGroupedBackground))
 }

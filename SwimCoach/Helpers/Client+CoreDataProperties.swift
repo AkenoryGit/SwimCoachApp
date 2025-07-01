@@ -97,3 +97,12 @@ extension Training {
         return set.sorted { ($0.fullName ?? "") < ($1.fullName ?? "") }
     }
 }
+
+extension Client {
+    func age(on date: Date = Date()) -> Int? {
+        guard let birthDate = self.birthDate else { return nil }
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.year], from: birthDate, to: date)
+        return components.year
+    }
+}

@@ -18,25 +18,16 @@ extension PeopleListView {
     }
 
     // MARK: - Фильтрация
-    var filteredItems: [(UUID, String)] {
-        switch selectedTab {
-        case .clients:
-            return allClients
-                .filter { showDeletedPeople ? $0.isDeletedClient : !$0.isDeletedClient }
-                .filter { searchText.isEmpty || ($0.fullName ?? "").localizedCaseInsensitiveContains(searchText) }
-                .compactMap { client in
-                    guard let id = client.id else { return nil }
-                    return (id, client.fullName ?? "Без имени")
-                }
-        case .coaches:
-            return allCoaches
-                .filter { showDeletedPeople ? $0.isMarkedDeleted : !$0.isMarkedDeleted }
-                .filter { searchText.isEmpty || ($0.fullName ?? "").localizedCaseInsensitiveContains(searchText) }
-                .compactMap { coach in
-                    guard let id = coach.id else { return nil }
-                    return (id, coach.fullName ?? "Без имени")
-                }
-        }
+    var filteredClients: [Client] {
+        allClients
+            .filter { showDeletedPeople ? $0.isDeletedClient : !$0.isDeletedClient }
+            .filter { searchText.isEmpty || ($0.fullName ?? "").localizedCaseInsensitiveContains(searchText) }
+    }
+
+    var filteredCoaches: [CoachData] {
+        allCoaches
+            .filter { showDeletedPeople ? $0.isMarkedDeleted : !$0.isMarkedDeleted }
+            .filter { searchText.isEmpty || ($0.fullName ?? "").localizedCaseInsensitiveContains(searchText) }
     }
 
     // MARK: - Выбор
