@@ -86,7 +86,8 @@ extension AnyIdentifiableEntry {
             totalColumns: 1,
             trainingType: nil,               // Для дежурств нет типа тренировки
             location: nil,                   // Для дежурств нет локации
-            clientNames: []                  // Для дежурств нет клиентов
+            clientNames: [],                 // Для дежурств нет клиентов
+            clientInfoText: ""
         )
     }
 }

@@ -27,4 +27,5 @@ struct PositionedEntry: Identifiable {
     let trainingType: TrainingType?   // nil для дежурств
     let location: TrainingLocation?   // nil для дежурств
     let clientNames: [String]         // список ФИО клиентов, пустой для дежурств
+    let clientInfoText: String
 }

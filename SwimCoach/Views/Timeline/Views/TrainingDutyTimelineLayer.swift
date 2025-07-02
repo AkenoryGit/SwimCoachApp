@@ -42,15 +42,23 @@ struct TrainingDutyTimelineLayer: View {
                             .clipShape(RightRoundedCornersShape(radius: 8))
                             .overlay(
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(displayTitle(for: entry))
-                                        .font(.caption)
-                                        .bold()
+                                    if !entry.clientInfoText.isEmpty {
+                                        Text(entry.clientInfoText)
+                                            .font(.caption2)
+                                            .foregroundColor(.black)
+                                    } else {
+                                        Text(entry.title)
+                                            .font(.caption2)
+                                            .bold()
+                                            .foregroundColor(.black)
+                                    }
+
                                     Text(timeRangeText(entry: entry))
                                         .font(.caption2)
+                                        .foregroundColor(.black)
                                 }
                                 .padding(6)
-                                .foregroundColor(.black),
-                                alignment: .topLeading
+                                , alignment: .topLeading
                             )
                             .offset(x: blockXOffset, y: entry.yOffset)
                             .onTapGesture {

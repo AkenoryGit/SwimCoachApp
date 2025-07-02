@@ -44,7 +44,8 @@ struct SchedulePositionCalculator {
                 totalColumns: 1,
                 trainingType: nil,               // Для дежурств нет типа тренировки
                 location: nil,                   // Для дежурств нет локации
-                clientNames: []                  // Для дежурств нет клиентов
+                clientNames: [],                  // Для дежурств нет клиентов
+                clientInfoText: ""
             ))
         }
 
@@ -127,6 +128,41 @@ struct SchedulePositionCalculator {
             for training in column {
                 guard let start = training.date, let end = training.endTime else { continue }
 
+                // Строка ФИО + возраст
+                let type = TrainingType(rawValue: training.type ?? "")
+                let clientsSet = training.clients as? Set<Client> ?? []
+
+                let clientInfoText: String
+                let displayTitle: String
+
+                if type == .group || type == .miniGroup || type == .split {
+                    let baseTitle: String
+                    switch type {
+                    case .group:
+                        baseTitle = "Группа"
+                    case .miniGroup:
+                        baseTitle = "Мини-группа"
+                    case .split:
+                        baseTitle = "Сплит"
+                    default:
+                        baseTitle = training.type ?? "Тренировка"
+                    }
+                    displayTitle = "\(baseTitle) (\(clientsSet.count) чел.)"
+                    clientInfoText = ""
+                } else {
+                    displayTitle = clientsSet.compactMap { $0.fullName }.joined(separator: ", ")
+                    clientInfoText = clientsSet
+                        .map { client in
+                            let name = client.fullName ?? "Без имени"
+                            if let age = client.age() {
+                                return "\(name), \(age) \(age.yearWord())"
+                            } else {
+                                return name
+                            }
+                        }
+                        .joined(separator: "; ")
+                }
+                
                 let offset = CGFloat(start.timeIntervalSince(startOfDay)) / 3600 * hourHeight
                 let duration = CGFloat(end.timeIntervalSince(start)) / 3600 * hourHeight
 
@@ -141,7 +177,7 @@ struct SchedulePositionCalculator {
                 result.append(PositionedEntry(
                     id: training.id ?? UUID(),
                     type: .training,
-                    title: clientNames.isEmpty ? (training.type ?? "Тренировка") : clientNames,
+                    title: displayTitle,
                     startTime: start,
                     endTime: end,
                     yOffset: offset,
@@ -150,7 +186,8 @@ struct SchedulePositionCalculator {
                     totalColumns: columns.count,
                     trainingType: TrainingType(rawValue: training.type ?? ""),
                     location: TrainingLocation(rawValue: training.location ?? ""),
-                    clientNames: (training.clients as? Set<Client>)?.compactMap { $0.fullName } ?? []
+                    clientNames: (training.clients as? Set<Client>)?.compactMap { $0.fullName } ?? [],
+                    clientInfoText: clientInfoText
                 ))
             }
         }
