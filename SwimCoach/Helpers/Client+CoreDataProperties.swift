@@ -99,10 +99,30 @@ extension Training {
 }
 
 extension Client {
-    func age(on date: Date = Date()) -> Int? {
-        guard let birthDate = self.birthDate else { return nil }
+    func age(on date: Date) -> Int? {
+        guard let birthDate = birthDate else { return nil }
+
         let calendar = Calendar.current
-        let components = calendar.dateComponents([.year], from: birthDate, to: date)
-        return components.year
+
+        let birthComponents = calendar.dateComponents([.year, .month, .day], from: birthDate)
+        let currentComponents = calendar.dateComponents([.year, .month, .day], from: date)
+
+        guard let birthYear = birthComponents.year,
+              let birthMonth = birthComponents.month,
+              let birthDay = birthComponents.day,
+              let currentYear = currentComponents.year,
+              let currentMonth = currentComponents.month,
+              let currentDay = currentComponents.day else {
+            return nil
+        }
+
+        var age = currentYear - birthYear
+
+        // если день рождения ещё не наступил в этом году — вычитаем 1
+        if (currentMonth < birthMonth) || (currentMonth == birthMonth && currentDay < birthDay) {
+            age -= 1
+        }
+
+        return age
     }
 }

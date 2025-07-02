@@ -154,7 +154,7 @@ struct SchedulePositionCalculator {
                     clientInfoText = clientsSet
                         .map { client in
                             let name = client.fullName ?? "Без имени"
-                            if let age = client.age() {
+                            if let age = client.age(on: start) {
                                 return "\(name), \(age) \(age.yearWord())"
                             } else {
                                 return name

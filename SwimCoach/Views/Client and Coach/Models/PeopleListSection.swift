@@ -22,7 +22,7 @@ extension PeopleListView {
                         ForEach(filteredClients) { client in
                             let id = client.id ?? UUID()
                             let name = client.fullName ?? "Без имени"
-                            let ageString = client.age().map { ", \($0) \($0.yearWord())" } ?? ""
+                            let ageString = client.age(on: Date()).map { ", \($0) \($0.yearWord())" } ?? ""
                             
                             PersonRowView(
                                 name: name + ageString,
