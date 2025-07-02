@@ -16,7 +16,7 @@ struct TimelineBackgroundView: View {
             ForEach(6..<24) { hour in
                 HStack(spacing: 0) {
                     Text(String(format: "%02d:00", hour))
-                        .font(.caption2)
+                        .font(.caption2.bold())
                         .foregroundColor(.gray)
                         .frame(width: 50, alignment: .trailing)
                         .padding(.trailing, 4)

@@ -67,8 +67,8 @@ struct TrainingDutyTimelineLayer: View {
                     } else {
                         RoundedRectangle(cornerRadius: 8)
                             .fill(Color.red.opacity(0.3))
-                            .frame(width: 20, height: entry.height)
-                            .offset(x: 5, y: entry.yOffset)
+                            .frame(width: 50, height: entry.height)
+                            .offset(x: 20, y: entry.yOffset)
                             .onTapGesture {
                                 onSelectEntry?(entry)
                             }

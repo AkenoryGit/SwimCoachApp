@@ -15,7 +15,7 @@ struct CurrentTimeIndicatorView: View {
     var body: some View {
         ZStack(alignment: .leading) {
             Rectangle()
-                .fill(Color.red)
+                .fill(Color.red.opacity(0.4))
                 .frame(height: 2)
                 .padding(.leading, 50) // сместим чуть правее, чтобы не лезло под текст
                 .padding(.trailing, 8) 
@@ -27,7 +27,7 @@ struct CurrentTimeIndicatorView: View {
                 .foregroundColor(.white)
                 .cornerRadius(6)
                 .padding(.leading, 4)
-                .offset(x: +20)// немного отступа от края
+                .offset(x: +21)// немного отступа от края
         }
         .offset(y: yOffset + 20)
     }
