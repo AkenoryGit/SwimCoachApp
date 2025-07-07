@@ -20,7 +20,7 @@ extension PeopleListView {
     
     // MARK: - Переключатель клиентов/тренеров
     var pickerSection: some View {
-        Picker("Тип", selection: $selectedTab) {
+        Picker("Тип", selection: $viewModel.selectedTab) {
             ForEach(TabType.allCases) { tab in
                 Text(tab.rawValue).tag(tab)
             }

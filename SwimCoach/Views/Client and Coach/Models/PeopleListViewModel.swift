@@ -20,17 +20,19 @@ class PeopleListViewModel: ObservableObject {
     @Published var showingAddView = false
     @Published var selectedClient: Client?
     @Published var selectedCoach: CoachData?
+    @Published var showingProtectedCoachAlert = false
+    @Published var showingProtectedClientAlert = false
 
     // Контекст Core Data
     let context: NSManagedObjectContext
 
     // Данные из Core Data
-    var allClients: FetchedResults<Client>
-    var allCoaches: FetchedResults<CoachData>
-
+    var allClients: [Client]
+    var allCoaches: [CoachData]
+    
     init(context: NSManagedObjectContext,
-         clients: FetchedResults<Client>,
-         coaches: FetchedResults<CoachData>) {
+         clients: [Client],
+         coaches: [CoachData]) {
         self.context = context
         self.allClients = clients
         self.allCoaches = coaches
@@ -50,8 +52,12 @@ class PeopleListViewModel: ObservableObject {
             return allCoaches
                 .filter { showDeletedPeople ? $0.isMarkedDeleted : !$0.isMarkedDeleted }
                 .filter { searchText.isEmpty || ($0.fullName ?? "").localizedCaseInsensitiveContains(searchText) }
-                .compactMap { ($0.id, $0.fullName ?? "Без имени") }
-                .compactMap { id, name in id.map { ($0, name) } }
+                .compactMap { item in
+                    if let id = item.id {
+                        return (id, item.fullName ?? "Без имени")
+                    }
+                    return nil
+                }
         }
     }
 
@@ -84,17 +90,64 @@ class PeopleListViewModel: ObservableObject {
     }
 
     /// Пометить выбранные как удалённые
-    func deleteSelected() {
+    func deleteSelectedOrPermanently() {
+        print("SelectedTab: \(selectedTab)")
+        print("Selected clients: \(selectedClientIDs)")
+        print("Selected coaches: \(selectedCoachIDs)")
+        
         withAnimation {
             if selectedTab == .clients {
-                for client in allClients where selectedClientIDs.contains(client.id ?? UUID()) {
-                    client.isDeletedClient = true
+                let clientsToDelete = allClients.filter { selectedClientIDs.contains($0.id ?? UUID()) }
+
+                // Проверка: есть ли клиенты с тренировками
+                if clientsToDelete.contains(where: { ($0.training as? Set<Training>)?.isEmpty == false }) {
+                    DispatchQueue.main.async {
+                        // Показываем алерт о том, что нельзя удалить
+                        self.showingProtectedClientAlert = true
+                    }
+                    return
+                }
+
+                for client in clientsToDelete {
+                    if client.isDeletedClient {
+                        context.delete(client)
+                    } else {
+                        client.isDeletedClient = true
+                    }
                 }
             } else {
-                for coach in allCoaches where selectedCoachIDs.contains(coach.id ?? UUID()) {
-                    coach.isMarkedDeleted = true
+                // Проверка: есть ли хотя бы один тренер с дежурствами
+                let coachesToDelete = allCoaches.filter { selectedCoachIDs.contains($0.id ?? UUID()) }
+                
+                for coach in coachesToDelete {
+                    context.refresh(coach, mergeChanges: true)
+                }
+
+                if coachesToDelete.contains(where: {
+                    if let duties = $0.duties {
+                        print("Проверяем тренера \($0.fullName ?? "Без имени") — количество дежурств: \(duties.count)")
+                        return duties.count > 0
+                    } else {
+                        print("У тренера \($0.fullName ?? "Без имени") нет duties")
+                        return false
+                    }
+                }) {
+                    DispatchQueue.main.async {
+                        self.showingProtectedCoachAlert = true
+                    }
+                    return
+                }
+
+                // Если всё чисто — продолжаем
+                for coach in coachesToDelete {
+                    if coach.isMarkedDeleted {
+                        context.delete(coach)
+                    } else {
+                        coach.isMarkedDeleted = true
+                    }
                 }
             }
+
             saveChanges()
         }
     }
@@ -109,22 +162,6 @@ class PeopleListViewModel: ObservableObject {
             } else {
                 for coach in allCoaches where selectedCoachIDs.contains(coach.id ?? UUID()) {
                     coach.isMarkedDeleted = false
-                }
-            }
-            saveChanges()
-        }
-    }
-
-    /// Полностью удалить элементы
-    func deletePermanently() {
-        withAnimation {
-            if selectedTab == .clients {
-                for client in allClients where selectedClientIDs.contains(client.id ?? UUID()) {
-                    context.delete(client)
-                }
-            } else {
-                for coach in allCoaches where selectedCoachIDs.contains(coach.id ?? UUID()) {
-                    context.delete(coach)
                 }
             }
             saveChanges()

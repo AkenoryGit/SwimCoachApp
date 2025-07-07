@@ -27,26 +27,47 @@ class AddClientViewModel: ObservableObject { // ObservableObject позволя�
         !fullName.trimmingCharacters(in: .whitespaces).isEmpty // Проверяем, что ФИО не пустое после удаления пробелов
     }
 
-    func saveClient(to context: NSManagedObjectContext) { // Функция для сохранения клиента в Core Data
-        let newClient = Client(context: context) // Создаем новый объект Client в контексте Core Data
-        newClient.id = UUID() // Генерируем уникальный идентификатор для клиента
-        newClient.fullName = fullName // Устанавливаем полное имя клиента
-        newClient.phone = phone // Устанавливаем телефон клиента
-        newClient.birthDate = isBirthDateSpecified ? birthDate : nil
-        newClient.notes = notes // Устанавливаем примечания к клиенту
+    func saveClient(to context: NSManagedObjectContext, allowDuplicate: Bool = false) -> Bool {
+        let trimmedName = fullName.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        for (type, count) in trainingCounts where count > 0 { // Перебираем словарь trainingCounts
-            let balance = TrainingBalance(context: context) // Создаем новый объект TrainingBalance в контексте Core Data
-            balance.id = UUID() // Генерируем уникальный идентификатор для баланса
-            balance.type = type.rawValue // Устанавливаем тип тренировки из перечисления TrainingType
-            balance.count = Int32(count) // Устанавливаем количество оплаченных тренировок, преобразуя Int в Int32
-            balance.client = newClient // Связываем баланс с клиентом
+        // Проверка на дубликат
+        if !allowDuplicate {
+            let fetchRequest: NSFetchRequest<Client> = Client.fetchRequest()
+            fetchRequest.predicate = NSPredicate(format: "fullName ==[cd] %@", trimmedName)
+
+            do {
+                let existingClients = try context.fetch(fetchRequest)
+                if !existingClients.isEmpty {
+                    return false // Найден дубликат
+                }
+            } catch {
+                print("❌ Ошибка проверки дубликатов: \(error.localizedDescription)")
+                return false
+            }
         }
 
-        do { // Попытка сохранить контекст Core Data
-            try context.save() // Сохраняем изменения в контексте
-        } catch { // Обработка ошибки сохранения
-            print("Ошибка при сохранении клиента: \(error.localizedDescription)") // Выводим сообщение об ошибке в консоль
+        // Сохраняем клиента
+        let newClient = Client(context: context)
+        newClient.id = UUID()
+        newClient.fullName = trimmedName
+        newClient.phone = phone
+        newClient.birthDate = isBirthDateSpecified ? birthDate : nil
+        newClient.notes = notes
+
+        for (type, count) in trainingCounts where count > 0 {
+            let balance = TrainingBalance(context: context)
+            balance.id = UUID()
+            balance.type = type.rawValue
+            balance.count = Int32(count)
+            balance.client = newClient
+        }
+
+        do {
+            try context.save()
+            return true
+        } catch {
+            print("❌ Ошибка при сохранении клиента: \(error.localizedDescription)")
+            return false
         }
     }
 }

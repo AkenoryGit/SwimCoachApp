@@ -301,15 +301,8 @@ extension EntryViewModel {
     private func saveNewDuty(context: NSManagedObjectContext,
                              activeTrainers: FetchedResults<CoachData>,
                              dismiss: @escaping () -> Void) {
-        let duty = Duty(context: context)
-        duty.id = UUID()
-        duty.startTime = date
-        duty.endTime = endTime
-        duty.note = note
-        duty.status = status
-        duty.trainerName = selectedTrainer?.fullName
 
-        // Проверка пересечений дежурств
+        // Сначала проверяем пересечения
         let fetchRequest: NSFetchRequest<Duty> = Duty.fetchRequest()
         fetchRequest.predicate = NSPredicate(format: "(startTime < %@) AND (endTime > %@)", endTime as CVarArg, date as CVarArg)
 
@@ -320,6 +313,17 @@ extension EntryViewModel {
                 showTimeErrorAlert = true
                 return
             }
+
+            // Только если всё ок — создаём и сохраняем
+            let duty = Duty(context: context)
+            duty.id = UUID()
+            duty.startTime = date
+            duty.endTime = endTime
+            duty.note = note
+            duty.status = status
+            duty.trainerName = selectedTrainer?.fullName
+            duty.coach = selectedTrainer
+
             try context.save()
             dismiss()
         } catch {
@@ -352,6 +356,7 @@ extension EntryViewModel {
             duty.note = note
             duty.status = status
             duty.trainerName = selectedTrainer?.fullName
+            duty.coach = selectedTrainer
 
             try context.save()
             dismiss()

@@ -12,6 +12,8 @@ struct AddClientView: View { // Форма для добавления ново�
     @Environment(\.managedObjectContext) private var viewContext // Контекст Core Data для сохранения клиента
     @Environment(\.dismiss) private var dismiss // Позволяет закрыть модальное окно
     @StateObject private var viewModel = AddClientViewModel() // ViewModel для управления состоянием формы
+    @State private var showDuplicateAlert = false
+    @State private var allowSavingDuplicate = false
 
     var body: some View { // Главный интерфейс формы
         NavigationView { // Навигационное окно для управления переходами
@@ -48,13 +50,31 @@ struct AddClientView: View { // Форма для добавления ново�
                     }
                 }
 
-                ToolbarItem(placement: .confirmationAction) { // Кнопка для сохранения нового клиента
-                    Button("Сохранить") { // Действие при нажатии кнопки "Сохранить"
-                        viewModel.saveClient(to: viewContext) // Сохраняем клиента в Core Data
-                        dismiss() // Закрываем модальное окно
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Сохранить") {
+                        let wasSaved = viewModel.saveClient(to: viewContext, allowDuplicate: allowSavingDuplicate)
+                        if wasSaved {
+                            dismiss()
+                        } else {
+                            showDuplicateAlert = true
+                        }
                     }
-                    .disabled(!viewModel.isFormValid) // Отключает (делает неактивной) кнопку «Сохранить», если форма не прошла проверку на валидность.
+                    .disabled(!viewModel.isFormValid)
                 }
+            }
+            .alert("Клиент с таким ФИО уже существует", isPresented: $showDuplicateAlert) {
+                Button("Отменить", role: .cancel) {
+                    allowSavingDuplicate = false
+                }
+                Button("Создать всё равно", role: .destructive) {
+                    allowSavingDuplicate = true
+                    let saved = viewModel.saveClient(to: viewContext, allowDuplicate: true)
+                    if saved {
+                        dismiss()
+                    }
+                }
+            } message: {
+                Text("Вы уверены, что хотите создать клиента с таким же именем?")
             }
         }
     }

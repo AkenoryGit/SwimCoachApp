@@ -13,6 +13,8 @@ class CoachDetailViewModel: ObservableObject {
     @Published var coach: CoachData                           // Модель тренера
     @Published var showingDeleteAlert = false                 // Флаг показа алерта удаления
     @Published var showingEditForm = false                    // Флаг показа формы редактирования
+    @Published var selectedCoachIDs: Set<UUID> = []
+    @Published var showingProtectedCoachAlert = false
 
     init(coach: CoachData) {
         self.coach = coach

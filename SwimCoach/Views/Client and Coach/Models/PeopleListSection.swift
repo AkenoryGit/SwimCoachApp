@@ -12,13 +12,13 @@ extension PeopleListView {
     // MARK: - Секция со списком или сообщением об отсутствии данных
     var peopleListSection: some View {
         Group {
-            if selectedTab == .clients && filteredClients.isEmpty {
+            if viewModel.selectedTab == .clients && filteredClients.isEmpty {
                 emptyPlaceholder(text: "Нет удалённых клиентов")
-            } else if selectedTab == .coaches && filteredCoaches.isEmpty {
+            } else if viewModel.selectedTab == .coaches && filteredCoaches.isEmpty {
                 emptyPlaceholder(text: "Нет удалённых тренеров")
             } else {
                 List {
-                    if selectedTab == .clients {
+                    if viewModel.selectedTab == .clients {
                         ForEach(filteredClients) { client in
                             let id = client.id ?? UUID()
                             let name = client.fullName ?? "Без имени"

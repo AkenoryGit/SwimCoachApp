@@ -14,6 +14,8 @@ struct AddCoachView: View {
 
     @State private var fullName = ""
     @State private var specialty = ""
+    @State private var showDuplicateAlert = false
+    @State private var allowSavingDuplicate = false
 
     var body: some View {
         NavigationStack {
@@ -33,11 +35,27 @@ struct AddCoachView: View {
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Сохранить") {
-                        saveCoach()
-                        dismiss()
+                        if allowSavingDuplicate || !doesCoachExist(with: fullName) {
+                            saveCoach()
+                            dismiss()
+                        } else {
+                            showDuplicateAlert = true
+                        }
                     }
                     .disabled(fullName.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
+            }
+            .alert("Тренер с таким ФИО уже существует", isPresented: $showDuplicateAlert) {
+                Button("Отменить", role: .cancel) {
+                    allowSavingDuplicate = false
+                }
+                Button("Создать всё равно", role: .destructive) {
+                    allowSavingDuplicate = true
+                    saveCoach()
+                    dismiss()
+                }
+            } message: {
+                Text("Вы уверены, что хотите создать тренера с таким же именем?")
             }
         }
     }
@@ -53,6 +71,18 @@ struct AddCoachView: View {
             try viewContext.save()
         } catch {
             print("❌ Ошибка при сохранении тренера: \(error.localizedDescription)")
+        }
+    }
+    private func doesCoachExist(with name: String) -> Bool {
+        let request: NSFetchRequest<CoachData> = CoachData.fetchRequest()
+        request.predicate = NSPredicate(format: "fullName ==[cd] %@", name.trimmingCharacters(in: .whitespacesAndNewlines))
+
+        do {
+            let result = try viewContext.fetch(request)
+            return !result.isEmpty
+        } catch {
+            print("❌ Ошибка при проверке дубликатов: \(error.localizedDescription)")
+            return false
         }
     }
 }

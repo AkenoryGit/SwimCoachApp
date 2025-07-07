@@ -13,17 +13,15 @@ struct PeopleListView: View {
     @Environment(\.managedObjectContext) var viewContext
 
     // MARK: - UI Состояния
-    @State var selectedTab: TabType = .clients
     @State private var showingAddView = false
     @State var selectedClient: Client?
     @State var selectedCoach: CoachData?
     @State var searchText = ""
     @State var isSelectionMode = false
-    @State var selectedClientIDs: Set<UUID> = []
-    @State var selectedCoachIDs: Set<UUID> = []
     @State var showDeletedPeople = false
     @State var showDeleteAlert = false
     @FocusState var isSearchFocused: Bool
+    @StateObject var viewModel: PeopleListViewModel
 
     // MARK: - CoreData
     @FetchRequest(entity: Client.entity(), sortDescriptors: [NSSortDescriptor(keyPath: \Client.fullName, ascending: true)])
@@ -31,6 +29,20 @@ struct PeopleListView: View {
 
     @FetchRequest(entity: CoachData.entity(), sortDescriptors: [NSSortDescriptor(keyPath: \CoachData.fullName, ascending: true)])
     var allCoaches: FetchedResults<CoachData>
+    
+    init() {
+        let context = PersistenceController.shared.container.viewContext
+        let clients = try! context.fetch(Client.fetchRequest()) as! [Client]
+        let request = CoachData.fetchRequest()
+        request.returnsObjectsAsFaults = false // <— это важно!
+        let coaches = try! context.fetch(request) as! [CoachData]
+
+        _viewModel = StateObject(wrappedValue: PeopleListViewModel(
+            context: context,
+            clients: clients,
+            coaches: coaches
+        ))
+    }
 
     var body: some View {
         NavigationStack {
@@ -79,22 +91,32 @@ struct PeopleListView: View {
                 }
             }
             .sheet(isPresented: $showingAddView) {
-                if selectedTab == .clients {
+                if viewModel.selectedTab == .clients {
                     AddClientView()
                 } else {
                     AddCoachView()
                 }
             }
             .sheet(item: $selectedClient) { ClientDetailView(client: $0) }
-            .sheet(item: $selectedCoach) { CoachDetailView(coach: $0) }
+            .alert("Невозможно удалить клиента", isPresented: $viewModel.showingProtectedClientAlert) {
+                Button("Ок", role: .cancel) { }
+            } message: {
+                Text("У этого клиента есть тренировки. Сначала удалите или измените эти тренировки.")
+            }
+            .sheet(item: $selectedCoach) { CoachDetailView(coach: $0, viewModel: viewModel) }
             .alert(showDeletedPeople ? "Удалить навсегда?" : "Удалить выбранные записи?", isPresented: $showDeleteAlert) {
                 Button("Удалить", role: .destructive) {
-                    showDeletedPeople ? deletePermanently() : deleteSelected()
+                    viewModel.deleteSelectedOrPermanently()
                 }
                 Button("Отмена", role: .cancel) {}
             } message: {
                 Text("Это действие нельзя отменить.")
             }
+        }
+        .alert("Невозможно удалить тренера", isPresented: $viewModel.showingProtectedCoachAlert) {
+            Button("Ок", role: .cancel) { }
+        } message: {
+            Text("Этот тренер прикреплён к дежурствам. Сначала удалите или измените эти дежурства.")
         }
     }
 }

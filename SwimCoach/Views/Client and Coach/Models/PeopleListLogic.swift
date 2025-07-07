@@ -12,7 +12,7 @@ extension PeopleListView {
 
     // MARK: - Заголовок
     var currentTitle: String {
-        selectedTab == .clients
+        viewModel.selectedTab == .clients
         ? (showDeletedPeople ? "Удалённые клиенты" : "Клиенты")
         : (showDeletedPeople ? "Удалённые тренера" : "Тренера")
     }
@@ -32,42 +32,42 @@ extension PeopleListView {
 
     // MARK: - Выбор
     func isSelected(id: UUID) -> Bool {
-        selectedTab == .clients ? selectedClientIDs.contains(id) : selectedCoachIDs.contains(id)
+        viewModel.selectedTab == .clients ? viewModel.selectedClientIDs.contains(id) : viewModel.selectedCoachIDs.contains(id)
     }
 
     func toggleSelection(id: UUID) {
-        if selectedTab == .clients {
-            selectedClientIDs.formSymmetricDifference([id])
+        if viewModel.selectedTab == .clients {
+            viewModel.selectedClientIDs.formSymmetricDifference([id])
         } else {
-            selectedCoachIDs.formSymmetricDifference([id])
+            viewModel.selectedCoachIDs.formSymmetricDifference([id])
         }
     }
 
     func clearSelection() {
-        selectedClientIDs.removeAll()
-        selectedCoachIDs.removeAll()
+        viewModel.selectedClientIDs.removeAll()
+        viewModel.selectedCoachIDs.removeAll()
     }
 
     // MARK: - Удаление / Восстановление / Полное удаление
-    func deleteSelected() {
-        withAnimation {
-            if selectedTab == .clients {
-                allClients.filter { selectedClientIDs.contains($0.id ?? UUID()) }.forEach { $0.isDeletedClient = true }
-            } else {
-                allCoaches.filter { selectedCoachIDs.contains($0.id ?? UUID()) }.forEach { $0.isMarkedDeleted = true }
-            }
-            try? viewContext.save()
-            clearSelection()
-            isSelectionMode = false
-        }
-    }
+//    func deleteSelected() {
+//        withAnimation {
+//            if selectedTab == .clients {
+//                allClients.filter { selectedClientIDs.contains($0.id ?? UUID()) }.forEach { $0.isDeletedClient = true }
+//            } else {
+//                allCoaches.filter { selectedCoachIDs.contains($0.id ?? UUID()) }.forEach { $0.isMarkedDeleted = true }
+//            }
+//            try? viewContext.save()
+//            clearSelection()
+//            isSelectionMode = false
+//        }
+//    }
 
     func restoreSelected() {
         withAnimation {
-            if selectedTab == .clients {
-                allClients.filter { selectedClientIDs.contains($0.id ?? UUID()) }.forEach { $0.isDeletedClient = false }
+            if viewModel.selectedTab == .clients {
+                allClients.filter { viewModel.selectedClientIDs.contains($0.id ?? UUID()) }.forEach { $0.isDeletedClient = false }
             } else {
-                allCoaches.filter { selectedCoachIDs.contains($0.id ?? UUID()) }.forEach { $0.isMarkedDeleted = false }
+                allCoaches.filter { viewModel.selectedCoachIDs.contains($0.id ?? UUID()) }.forEach { $0.isMarkedDeleted = false }
             }
             try? viewContext.save()
             clearSelection()
@@ -75,16 +75,47 @@ extension PeopleListView {
         }
     }
 
-    func deletePermanently() {
-        withAnimation {
-            if selectedTab == .clients {
-                allClients.filter { selectedClientIDs.contains($0.id ?? UUID()) }.forEach(viewContext.delete)
-            } else {
-                allCoaches.filter { selectedCoachIDs.contains($0.id ?? UUID()) }.forEach(viewContext.delete)
-            }
-            try? viewContext.save()
-            clearSelection()
-            isSelectionMode = false
-        }
-    }
+//    func deletePermanently() {
+//        withAnimation {
+//            if selectedTab == .clients {
+//                allClients.filter { selectedClientIDs.contains($0.id ?? UUID()) }.forEach(viewContext.delete)
+//            } else {
+//                allCoaches.filter { selectedCoachIDs.contains($0.id ?? UUID()) }.forEach(viewContext.delete)
+//            }
+//            try? viewContext.save()
+//            clearSelection()
+//            isSelectionMode = false
+//        }
+//    }
+    
+//    func deleteSelectedOrPermanently() {
+//        withAnimation {
+//            if selectedTab == .clients {
+//                for client in allClients where selectedClientIDs.contains(client.id ?? UUID()) {
+//                    if client.isDeletedClient {
+//                        viewContext.delete(client)
+//                    } else {
+//                        client.isDeletedClient = true
+//                    }
+//                }
+//            } else {
+//                for coach in allCoaches where selectedCoachIDs.contains(coach.id ?? UUID()) {
+//                    if let duties = coach.duties as? Set<Duty>, !duties.isEmpty {
+//                        viewModel.showingProtectedCoachAlert = true
+//                        return
+//                    }
+//
+//                    if coach.isMarkedDeleted {
+//                        viewContext.delete(coach)
+//                    } else {
+//                        coach.isMarkedDeleted = true
+//                    }
+//                }
+//            }
+//
+//            try? viewContext.save()
+//            clearSelection()
+//            isSelectionMode = false
+//        }
+//    }
 }
