@@ -14,6 +14,9 @@ struct NewScheduleView: View {
     @State private var positionedEntries: [PositionedEntry] = []
     @State private var showingAddSheet = false
     @State private var currentTime = Date()
+    @State private var showRecurrenceEditAlert = false
+    @State private var recurrenceEditTargetEntry: PositionedEntry? = nil
+    @State private var editingEntry: EditingEntryWrapper? = nil
     
     // Для редактирования выбранной записи
     @State private var selectedEntry: PositionedEntry? = nil
@@ -91,9 +94,7 @@ struct NewScheduleView: View {
                         TrainingDutyTimelineLayer(
                             entries: positionedEntries,
                             onUpdate: updateEntries,
-                            onSelectEntry: { entry in
-                                selectedEntry = entry
-                            }
+                            onSelectEntry: handleEntrySelection
                         )
                     }
                     .frame(height: 18 * hourHeight)
@@ -139,10 +140,25 @@ struct NewScheduleView: View {
             }
         }
         // Лист для редактирования выбранной записи
+        .sheet(item: $editingEntry) { wrapper in
+            NavigationStack {
+                editingEntrySheetView(wrapper: wrapper)
+            }
+        }
+        .alert("Редактировать повторяющуюся запись", isPresented: $showRecurrenceEditAlert) {
+            Button("Только эту", role: .cancel) {
+                openEditSheet(entry: recurrenceEditTargetEntry, mode: .thisOnly)
+            }
+            Button("Эту и последующие") {
+                openEditSheet(entry: recurrenceEditTargetEntry, mode: .thisAndFollowing)
+            }
+        } message: {
+            Text("Это повторяющаяся запись. Хотите изменить только эту или все последующие?")
+        }
         .sheet(item: $selectedEntry) { entry in
             EntryDetailView(entry: entry) {
-                updateEntries()
                 selectedEntry = nil
+                updateEntries()
             }
         }
     }
@@ -184,4 +200,52 @@ struct NewScheduleView: View {
             self.positionedEntries = []
         }
     }
+    
+    private func openEditSheet(entry: PositionedEntry?, mode: RecurrenceEditMode) {
+        guard let entry = entry else { return }
+        editingEntry = EditingEntryWrapper(entry: entry, mode: mode)
+    }
+    
+    private func handleEntrySelection(_ entry: PositionedEntry) {
+        print("📌 TAP на запись: \(entry.title)")
+        selectedEntry = entry
+    }
+    
+    @ViewBuilder
+    private func editingEntrySheetView(wrapper: EditingEntryWrapper) -> some View {
+        let entry = wrapper.entry
+        let mode = wrapper.mode
+
+        if let training = entry.trainingObject {
+            EntryView(
+                viewModel: EntryViewModel(training: training, recurrenceEditMode: mode),
+                activeClients: activeClients,
+                activeTrainers: activeTrainers,
+                onSave: {
+                    updateEntries()
+                    editingEntry = nil
+                }
+            )
+        } else if let duty = entry.dutyObject {
+            EntryView(
+                viewModel: EntryViewModel(duty: duty, recurrenceEditMode: mode),
+                activeClients: activeClients,
+                activeTrainers: activeTrainers,
+                onSave: {
+                    updateEntries()
+                    editingEntry = nil
+                }
+            )
+        } else {
+            Text("Ошибка: не удалось открыть запись")
+        }
+    }
 }
+
+struct EditingEntryWrapper: Identifiable {
+    let id = UUID()
+    let entry: PositionedEntry
+    let mode: RecurrenceEditMode
+}
+
+

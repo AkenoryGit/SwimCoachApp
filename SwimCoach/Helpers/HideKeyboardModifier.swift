@@ -7,19 +7,6 @@
 
 import SwiftUI
 
-//extension View {
-//    func dismissKeyboardOnTapAround() -> some View {
-//        ZStack {
-//            Color.clear
-//                .contentShape(Rectangle())
-//                .onTapGesture {
-//                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-//                }
-//            self
-//        }
-//    }
-//}
-
 struct KeyboardDismissWrapper<Content: View>: UIViewControllerRepresentable {
     let content: Content
 

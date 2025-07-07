@@ -14,7 +14,8 @@ struct EntryDetailView: View {
     
     @Environment(\.dismiss) private var dismiss
     @State private var showEditSheet = false
-    @State private var confirmDelete = false
+    @State private var showDeleteAlert = false
+    @State private var showRecurrenceOptions = false
     
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \CoachData.fullName, ascending: true)],
@@ -44,12 +45,26 @@ struct EntryDetailView: View {
                 .sheet(isPresented: $showEditSheet) {
                     editSheetView
                 }
-                .alert("Удалить запись?", isPresented: $confirmDelete) {
-                    Button("Удалить", role: .destructive) {
-                        deleteEntry()
-                    }
-                    Button("Отмена", role: .cancel) { }
+            // Алерт выбора режима удаления (если запись повторяющаяся)
+            .alert("Удалить повторяющиеся записи?", isPresented: $showRecurrenceOptions) {
+                Button("Удалить только эту", role: .destructive) {
+                    deleteEntry(recurrenceMode: .thisOnly)
                 }
+                Button("Удалить эту и все следующие", role: .destructive) {
+                    deleteEntry(recurrenceMode: .thisAndFollowing)
+                }
+                Button("Отмена", role: .cancel) { }
+            } message: {
+                Text("Это повторяющаяся запись. Что удалить?")
+            }
+
+            // Алерт для обычных записей
+            .alert("Удалить запись?", isPresented: $showDeleteAlert) {
+                Button("Удалить", role: .destructive) {
+                    deleteEntry()
+                }
+                Button("Отмена", role: .cancel) { }
+            }
         }
     }
 
@@ -102,7 +117,13 @@ struct EntryDetailView: View {
             .buttonStyle(.bordered)
 
             Button("Удалить", role: .destructive) {
-                confirmDelete = true
+                if entry.type == .training, let training = fetchTraining(by: entry.id), training.repeatFrequency != nil {
+                    showRecurrenceOptions = true
+                } else if entry.type == .duty, let duty = fetchDuty(by: entry.id), duty.repeatFrequency != nil {
+                    showRecurrenceOptions = true
+                } else {
+                    showDeleteAlert = true
+                }
             }
         }
     }
@@ -160,17 +181,44 @@ struct EntryDetailView: View {
         return "\(formatter.string(from: entry.startTime)) — \(formatter.string(from: entry.endTime))"
     }
 
-    private func deleteEntry() {
+    private func deleteEntry(recurrenceMode: RecurrenceEditMode = .thisOnly) {
         let context = PersistenceController.shared.container.viewContext
 
         switch entry.type {
         case .training:
             if let training = fetchTraining(by: entry.id) {
-                context.delete(training)
+                if recurrenceMode == .thisAndFollowing,
+                   let frequency = training.repeatFrequency,
+                   let startDate = training.date {
+                    let fetchRequest: NSFetchRequest<Training> = Training.fetchRequest()
+                    fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                        NSPredicate(format: "repeatFrequency == %@", frequency),
+                        NSPredicate(format: "date >= %@", startDate as NSDate)
+                    ])
+                    if let trainingsToDelete = try? context.fetch(fetchRequest) {
+                        trainingsToDelete.forEach { context.delete($0) }
+                    }
+                } else {
+                    context.delete(training)
+                }
             }
+
         case .duty:
             if let duty = fetchDuty(by: entry.id) {
-                context.delete(duty)
+                if recurrenceMode == .thisAndFollowing,
+                   let frequency = duty.repeatFrequency,
+                   let startDate = duty.startTime {
+                    let fetchRequest: NSFetchRequest<Duty> = Duty.fetchRequest()
+                    fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                        NSPredicate(format: "repeatFrequency == %@", frequency),
+                        NSPredicate(format: "startTime >= %@", startDate as NSDate)
+                    ])
+                    if let dutiesToDelete = try? context.fetch(fetchRequest) {
+                        dutiesToDelete.forEach { context.delete($0) }
+                    }
+                } else {
+                    context.delete(duty)
+                }
             }
         }
 

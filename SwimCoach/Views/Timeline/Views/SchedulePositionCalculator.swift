@@ -42,10 +42,12 @@ struct SchedulePositionCalculator {
                 height: duration,
                 column: 0,
                 totalColumns: 1,
-                trainingType: nil,               // Для дежурств нет типа тренировки
-                location: nil,                   // Для дежурств нет локации
-                clientNames: [],                  // Для дежурств нет клиентов
-                clientInfoText: ""
+                trainingType: nil,
+                location: nil,
+                clientNames: [],
+                clientInfoText: duty.trainerName ?? "",
+                trainingObject: nil,
+                dutyObject: duty // ← добавлено!
             ))
         }
 
@@ -187,7 +189,9 @@ struct SchedulePositionCalculator {
                     trainingType: TrainingType(rawValue: training.type ?? ""),
                     location: TrainingLocation(rawValue: training.location ?? ""),
                     clientNames: (training.clients as? Set<Client>)?.compactMap { $0.fullName } ?? [],
-                    clientInfoText: clientInfoText
+                    clientInfoText: clientInfoText,
+                    trainingObject: training,   // ← добавлено!
+                    dutyObject: nil             // ← добавлено!
                 ))
             }
         }

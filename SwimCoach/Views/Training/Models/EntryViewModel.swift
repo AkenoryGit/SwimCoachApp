@@ -19,6 +19,11 @@ enum EntryCategory {
     case duty
 }
 
+enum RecurrenceEditMode {
+    case thisOnly
+    case thisAndFollowing
+}
+
 final class EntryViewModel: ObservableObject {
 
     // MARK: - Входные параметры
@@ -38,6 +43,8 @@ final class EntryViewModel: ObservableObject {
     @Published var note: String = ""
     @Published var status: String = "Запланирована"
     @Published var category: EntryCategory
+    @Published var repeatFrequency: RepeatFrequency? = nil
+    @Published var recurrenceEditMode: RecurrenceEditMode = .thisOnly
 
     // MARK: - Тренировка
     @Published var selectedType: TrainingType = .personal
@@ -70,7 +77,8 @@ final class EntryViewModel: ObservableObject {
     }
 
     // MARK: - Инициализация для редактирования тренировки
-    init(training: Training) {
+    init(training: Training, recurrenceEditMode: RecurrenceEditMode = .thisOnly) {
+        self.recurrenceEditMode = recurrenceEditMode
         self.mode = .edit
         self.category = .training
         self.existingTraining = training
@@ -82,6 +90,7 @@ final class EntryViewModel: ObservableObject {
         self.status = training.status ?? "Запланирована"
         self.selectedType = TrainingType(rawValue: training.type ?? "") ?? .personal
         self.selectedLocation = TrainingLocation(rawValue: training.location ?? "") ?? .bigPool
+        self.repeatFrequency = training.repeatFrequencyEnum
         if let clients = training.clients as? Set<Client> {
             self.selectedClients = Set(clients.compactMap { $0.id })
         }
@@ -97,7 +106,8 @@ final class EntryViewModel: ObservableObject {
     }
 
     // MARK: - Инициализация для редактирования дежурства
-    init(duty: Duty) {
+    init(duty: Duty, recurrenceEditMode: RecurrenceEditMode = .thisOnly) {
+        self.recurrenceEditMode = recurrenceEditMode
         self.mode = .edit
         self.category = .duty
         self.existingDuty = duty
@@ -106,8 +116,8 @@ final class EntryViewModel: ObservableObject {
         self.endTime = duty.endTime ?? Date().addingTimeInterval(60 * 50)
         self.note = duty.note ?? ""
         self.status = duty.status ?? "Запланирована"
-        // Для дежурства указываем только тренера
-        // selectedTrainer должен быть установлен снаружи после инициализации
+        self.repeatFrequency = duty.repeatFrequencyEnum
+        // selectedTrainer — устанавливается снаружи после инициализации
     }
 
     // MARK: - Методы фильтрации, валидации, сохранения и обновления
@@ -226,142 +236,339 @@ extension EntryViewModel {
               activeClients: FetchedResults<Client>,
               activeTrainers: FetchedResults<CoachData>,
               dismiss: @escaping () -> Void) {
-
+        
         guard validateTime() else { return }
 
-        switch (mode, category) {
-        case (.create, .training):
-            saveNewTraining(context: context, activeClients: activeClients, dismiss: dismiss)
-        case (.edit, .training):
-            updateTraining(context: context, activeClients: activeClients, dismiss: dismiss)
-        case (.create, .duty):
-            saveNewDuty(context: context, activeTrainers: activeTrainers, dismiss: dismiss)
-        case (.edit, .duty):
-            updateDuty(context: context, activeTrainers: activeTrainers, dismiss: dismiss)
+        switch category {
+        case .training:
+            upsertEntry(
+                existingObject: existingTraining,
+                entityName: "Training",
+                recurrenceKey: "date",
+                repeatFrequency: repeatFrequency,
+                recurrenceEditMode: recurrenceEditMode,
+                context: context,
+                dismiss: dismiss,
+                configure: { training in
+                    training.setValue(self.date, forKey: "date")
+                    training.setValue(self.endTime, forKey: "endTime")
+                    training.setValue(self.status, forKey: "status")
+                    training.setValue(self.note, forKey: "note")
+                    training.setValue(self.selectedType.rawValue, forKey: "type")
+                    training.setValue(self.selectedLocation.rawValue, forKey: "location")
+
+                    if let training = training as? Training {
+                        training.removeFromClients(training.clients ?? [])
+                        for client in activeClients where self.selectedClients.contains(client.id ?? UUID()) {
+                            training.addToClients(client)
+                        }
+                    }
+                },
+                generateAdditional: { groupID in
+                    var result: [Training] = []
+                    let calendar = Calendar.current
+                    let maxDate = calendar.date(byAdding: .year, value: 1, to: self.date)!
+                    var offset = 1
+
+                    while let (nextStart, nextEnd) = self.repeatFrequency?.nextDate(from: self.date, endDate: self.endTime, step: offset),
+                          nextStart <= maxDate {
+
+                        let next = Training(context: context)
+                        next.id = UUID()
+                        next.date = nextStart
+                        next.endTime = nextEnd
+                        next.status = self.status
+                        next.note = self.note
+                        next.type = self.selectedType.rawValue
+                        next.location = self.selectedLocation.rawValue
+                        next.repeatFrequency = self.repeatFrequency?.rawValue
+                        next.repeatGroupID = groupID
+
+                        for client in activeClients where self.selectedClients.contains(client.id ?? UUID()) {
+                            next.addToClients(client)
+                        }
+
+                        result.append(next)
+                        offset += 1
+                    }
+
+                    return result
+                }
+            )
+
+        case .duty:
+            upsertEntry(
+                existingObject: existingDuty,
+                entityName: "Duty",
+                recurrenceKey: "startTime",
+                repeatFrequency: repeatFrequency,
+                recurrenceEditMode: recurrenceEditMode,
+                context: context,
+                dismiss: dismiss,
+                checkOverlapRequest: {
+                    guard self.recurrenceEditMode != .thisAndFollowing else {
+                        return NSFetchRequest<Duty>(entityName: "Duty")
+                    }
+
+                    let request: NSFetchRequest<Duty> = Duty.fetchRequest()
+                    request.includesPendingChanges = true
+
+                    if let currentID = self.existingDuty?.id {
+                        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                            NSPredicate(format: "(startTime < %@) AND (endTime > %@)", self.endTime as CVarArg, self.date as CVarArg),
+                            NSPredicate(format: "id != %@", currentID as CVarArg)
+                        ])
+                    } else {
+                        request.predicate = NSPredicate(format: "(startTime < %@) AND (endTime > %@)", self.endTime as CVarArg, self.date as CVarArg)
+                    }
+
+                    return request
+                },
+                configure: { (duty: Duty) in
+                    duty.startTime = self.date
+                    duty.endTime = self.endTime
+                    duty.status = self.status
+                    duty.note = self.note
+                    duty.trainerName = self.selectedTrainer?.fullName
+                    duty.coach = self.selectedTrainer
+                },
+                generateAdditional: repeatFrequency != nil ? { groupID in
+                    var result: [Duty] = []
+                    let calendar = Calendar.current
+                    let maxDate = calendar.date(byAdding: .year, value: 1, to: self.date)!
+                    var offset = 1
+
+                    while let (nextStart, nextEnd) = self.repeatFrequency?.nextDate(from: self.date, endDate: self.endTime, step: offset),
+                          nextStart <= maxDate {
+
+                        let next = Duty(context: context)
+                        next.id = UUID()
+                        next.startTime = nextStart
+                        next.endTime = nextEnd
+                        next.status = self.status
+                        next.note = self.note
+                        next.trainerName = self.selectedTrainer?.fullName
+                        next.coach = self.selectedTrainer
+                        next.repeatFrequency = self.repeatFrequency?.rawValue
+                        next.repeatGroupID = groupID
+
+                        result.append(next)
+                        offset += 1
+                    }
+
+                    return result
+                } : nil
+            )
         }
     }
+    
+    func delete(context: NSManagedObjectContext, dismiss: @escaping () -> Void) {
+        switch category {
+        case .training:
+            guard let training = existingTraining else { return }
 
-    private func saveNewTraining(context: NSManagedObjectContext,
-                                 activeClients: FetchedResults<Client>,
-                                 dismiss: @escaping () -> Void) {
-        let training = Training(context: context)
-        training.id = UUID()
-        training.date = date
-        training.endTime = endTime
-        training.type = selectedType.rawValue
-        training.location = selectedLocation.rawValue
-        training.status = status
-        training.note = note
+            deleteEntry(
+                objectToDelete: training,
+                entityType: Training.self,
+                recurrenceKey: "date",
+                recurrenceEditMode: recurrenceEditMode,
+                context: context,
+                dismiss: dismiss
+            )
 
-        // Добавляем клиентов, если есть выбранные
-        for client in activeClients where selectedClients.contains(client.id ?? UUID()) {
-            training.addToClients(client)
-            if status == "Проведена",
-               let balances = client.balances as? Set<TrainingBalance>,
-               let balance = balances.first(where: { $0.type == selectedType.rawValue && $0.count > 0 }) {
-                balance.count -= 1
+        case .duty:
+            guard let duty = existingDuty else { return }
+
+            deleteEntry(
+                objectToDelete: duty,
+                entityType: Duty.self,
+                recurrenceKey: "startTime",
+                recurrenceEditMode: recurrenceEditMode,
+                context: context,
+                dismiss: dismiss
+            )
+        }
+    }
+    
+    private func deleteEntry<T: NSManagedObject>(
+        objectToDelete: T,
+        entityType: T.Type,
+        recurrenceKey: String,
+        recurrenceEditMode: RecurrenceEditMode,
+        context: NSManagedObjectContext,
+        dismiss: @escaping () -> Void
+    ) {
+        if recurrenceEditMode == .thisAndFollowing,
+           let groupID = objectToDelete.value(forKey: "repeatGroupID") as? UUID,
+           let baseDate = objectToDelete.value(forKey: recurrenceKey) as? Date {
+
+            let request = NSFetchRequest<T>(entityName: String(describing: entityType))
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "repeatGroupID == %@", groupID as CVarArg),
+                NSPredicate(format: "\(recurrenceKey) >= %@", baseDate as NSDate)
+            ])
+
+            do {
+                let toDelete = try context.fetch(request)
+                toDelete.forEach { context.delete($0) }
+            } catch {
+                print("❌ Ошибка при удалении повторяющихся объектов \(T.self): \(error)")
             }
+
+        } else {
+            context.delete(objectToDelete)
         }
 
         do {
             try context.save()
             dismiss()
         } catch {
-            print("Ошибка при сохранении тренировки: \(error)")
+            print("Ошибка при сохранении после удаления: \(error)")
         }
     }
-
-    private func updateTraining(context: NSManagedObjectContext,
-                                activeClients: FetchedResults<Client>,
-                                dismiss: @escaping () -> Void) {
-        guard let training = existingTraining else { return }
-
-        training.date = date
-        training.endTime = endTime
-        training.type = selectedType.rawValue
-        training.location = selectedLocation.rawValue
-        training.status = status
-        training.note = note
-
-        training.removeFromClients(training.clients ?? [])
-
-        // Просто добавляем выбранных клиентов, если они есть
-        for client in activeClients where selectedClients.contains(client.id ?? UUID()) {
-            training.addToClients(client)
-        }
-
-        do {
-            try context.save()
-            dismiss()
-        } catch {
-            print("Ошибка при обновлении тренировки: \(error)")
-        }
-    }
-
-    private func saveNewDuty(context: NSManagedObjectContext,
-                             activeTrainers: FetchedResults<CoachData>,
-                             dismiss: @escaping () -> Void) {
-
-        // Сначала проверяем пересечения
-        let fetchRequest: NSFetchRequest<Duty> = Duty.fetchRequest()
-        fetchRequest.predicate = NSPredicate(format: "(startTime < %@) AND (endTime > %@)", endTime as CVarArg, date as CVarArg)
-
-        do {
-            let overlapping = try context.fetch(fetchRequest)
-            if !overlapping.isEmpty {
-                timeErrorMessage = "Это дежурство пересекается по времени с другим дежурством."
-                showTimeErrorAlert = true
-                return
-            }
-
-            // Только если всё ок — создаём и сохраняем
-            let duty = Duty(context: context)
-            duty.id = UUID()
-            duty.startTime = date
-            duty.endTime = endTime
-            duty.note = note
-            duty.status = status
-            duty.trainerName = selectedTrainer?.fullName
-            duty.coach = selectedTrainer
-
-            try context.save()
-            dismiss()
-        } catch {
-            print("Ошибка при сохранении дежурства: \(error)")
-        }
-    }
-
-    private func updateDuty(context: NSManagedObjectContext,
-                            activeTrainers: FetchedResults<CoachData>,
-                            dismiss: @escaping () -> Void) {
-        guard let duty = existingDuty else { return }
-
-        // Проверка пересечений дежурств, исключая текущее дежурство
-        let fetchRequest: NSFetchRequest<Duty> = Duty.fetchRequest()
-        fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            NSPredicate(format: "(startTime < %@) AND (endTime > %@)", endTime as CVarArg, date as CVarArg),
-            NSPredicate(format: "id != %@", duty.id! as CVarArg)
+    
+    private func deleteSeries<T: NSManagedObject>(
+        of type: T.Type,
+        groupID: UUID,
+        fieldName: String,
+        from date: Date,
+        context: NSManagedObjectContext
+    ) {
+        let request = NSFetchRequest<T>(entityName: String(describing: type))
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "repeatGroupID == %@", groupID as CVarArg),
+            NSPredicate(format: "\(fieldName) >= %@", date as NSDate)
         ])
 
         do {
-            let overlapping = try context.fetch(fetchRequest)
-            if !overlapping.isEmpty {
-                timeErrorMessage = "Это дежурство пересекается по времени с другим дежурством."
-                showTimeErrorAlert = true
-                return
+            let toDelete = try context.fetch(request)
+            toDelete.forEach { context.delete($0) }
+        } catch {
+            print("❌ Ошибка при удалении повторяющихся объектов \(T.self): \(error)")
+        }
+    }
+    
+    private func upsertEntry<T: NSManagedObject>(
+        existingObject: T?,
+        entityName: String,
+        recurrenceKey: String,
+        repeatFrequency: RepeatFrequency?,
+        recurrenceEditMode: RecurrenceEditMode,
+        context: NSManagedObjectContext,
+        dismiss: @escaping () -> Void,
+        checkOverlapRequest: (() -> NSFetchRequest<T>)? = nil,
+        configure: @escaping (T) -> Void,
+        generateAdditional: ((UUID) -> [T])? = nil
+    ) {
+        let nowIsRecurring = repeatFrequency != nil
+        let isEdit = (existingObject != nil)
+
+        var objectToSave: T
+
+        if isEdit {
+            objectToSave = existingObject!
+        } else {
+            objectToSave = NSEntityDescription.insertNewObject(forEntityName: entityName, into: context) as! T
+            if objectToSave.responds(to: Selector(("id"))) {
+                objectToSave.setValue(UUID(), forKey: "id")
+            }
+        }
+
+        // 🔁 Обработка случая "редактировать эту и следующие"
+        if isEdit && recurrenceEditMode == .thisAndFollowing {
+            if let groupID = objectToSave.value(forKey: "repeatGroupID") as? UUID,
+               let baseDate = objectToSave.value(forKey: recurrenceKey) as? Date {
+                // ⚠️ Меняем >= на >, чтобы НЕ удалить текущий элемент
+                deleteSeries(
+                    of: T.self,
+                    groupID: groupID,
+                    fieldName: recurrenceKey,
+                    from: Calendar.current.date(byAdding: .second, value: 1, to: baseDate)!,
+                    context: context
+                )
             }
 
-            duty.startTime = date
-            duty.endTime = endTime
-            duty.note = note
-            duty.status = status
-            duty.trainerName = selectedTrainer?.fullName
-            duty.coach = selectedTrainer
+            let newGroupID = UUID()
+            objectToSave.setValue(newGroupID, forKey: "repeatGroupID")
+            objectToSave.setValue(repeatFrequency?.rawValue, forKey: "repeatFrequency")
 
+            configure(objectToSave) // обновляем текущую запись
+
+            if let generate = generateAdditional {
+                for item in generate(newGroupID) {
+                    context.insert(item)
+                }
+            }
+
+            configure(objectToSave)
+        } else {
+            // ✅ Проверка пересечений для обычного редактирования и создания
+            if let request = checkOverlapRequest {
+                do {
+                    let overlaps = try context.fetch(request())
+                    print("📋 Найдено пересечений: \(overlaps.count)")
+                    for item in overlaps {
+                        if let duty = item as? Duty {
+                            print("⚠️ Duty ID: \(duty.id?.uuidString ?? "nil"), start: \(duty.startTime ?? Date()), end: \(duty.endTime ?? Date())")
+                        }
+                    }
+                    if !overlaps.isEmpty {
+                        self.timeErrorMessage = "Это пересекается по времени с другим элементом"
+                        self.showTimeErrorAlert = true
+                        return
+                    }
+                } catch {
+                    print("Ошибка проверки пересечений: \(error)")
+                }
+            }
+
+            let groupID = nowIsRecurring ? UUID() : (objectToSave.value(forKey: "repeatGroupID") as? UUID ?? UUID())
+
+            if nowIsRecurring {
+                objectToSave.setValue(groupID, forKey: "repeatGroupID")
+                objectToSave.setValue(repeatFrequency?.rawValue, forKey: "repeatFrequency")
+            }
+
+            configure(objectToSave)
+
+            if !isEdit && nowIsRecurring {
+                if let generate = generateAdditional {
+                    for item in generate(groupID) {
+                        context.insert(item)
+                    }
+                }
+            }
+
+            if isEdit && recurrenceEditMode == .thisOnly && repeatFrequency == nil {
+                if let groupID = objectToSave.value(forKey: "repeatGroupID") as? UUID,
+                   let baseDate = objectToSave.value(forKey: recurrenceKey) as? Date {
+                    deleteSeries(
+                        of: T.self,
+                        groupID: groupID,
+                        fieldName: recurrenceKey,
+                        from: baseDate,
+                        context: context
+                    )
+                    objectToSave.setValue(UUID(), forKey: "repeatGroupID")
+                }
+            }
+        }
+
+        do {
             try context.save()
             dismiss()
         } catch {
-            print("Ошибка при обновлении дежурства: \(error)")
+            print("Ошибка сохранения \(T.self): \(error)")
         }
     }
+}
+
+struct EntryData {
+    var id: UUID = UUID()
+    var start: Date
+    var end: Date
+    var note: String
+    var status: String
+    var repeatFrequency: RepeatFrequency?
+    var repeatGroupID: UUID?
 }

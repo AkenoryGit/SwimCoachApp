@@ -22,3 +22,17 @@ enum EntryType: String, CaseIterable, Identifiable {
         }
     }
 }
+
+extension Training {
+    var repeatFrequencyEnum: RepeatFrequency? {
+        get { RepeatFrequency.from(raw: repeatFrequency) }
+        set { repeatFrequency = newValue?.rawValue }
+    }
+}
+
+extension Duty {
+    var repeatFrequencyEnum: RepeatFrequency? {
+        get { RepeatFrequency.from(raw: repeatFrequency) }
+        set { repeatFrequency = newValue?.rawValue }
+    }
+}

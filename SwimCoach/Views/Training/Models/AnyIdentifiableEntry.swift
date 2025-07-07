@@ -87,7 +87,15 @@ extension AnyIdentifiableEntry {
             trainingType: nil,               // Для дежурств нет типа тренировки
             location: nil,                   // Для дежурств нет локации
             clientNames: [],                 // Для дежурств нет клиентов
-            clientInfoText: ""
+            clientInfoText: "",
+            trainingObject: {
+                if case .training(let t) = self { return t }
+                return nil
+            }(),
+            dutyObject: {
+                if case .duty(let d) = self { return d }
+                return nil
+            }()
         )
     }
 }
