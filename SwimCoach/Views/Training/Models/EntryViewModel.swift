@@ -90,10 +90,15 @@ final class EntryViewModel: ObservableObject {
         self.status = training.status ?? "Запланирована"
         self.selectedType = TrainingType(rawValue: training.type ?? "") ?? .personal
         self.selectedLocation = TrainingLocation(rawValue: training.location ?? "") ?? .bigPool
-        self.repeatFrequency = training.repeatFrequencyEnum
+        if let freq = training.repeatFrequencyEnum, training.repeatGroupID != nil {
+            self.repeatFrequency = freq
+        } else {
+            self.repeatFrequency = nil
+        }
         if let clients = training.clients as? Set<Client> {
             self.selectedClients = Set(clients.compactMap { $0.id })
         }
+        
         setupBindings()
     }
     
@@ -116,7 +121,14 @@ final class EntryViewModel: ObservableObject {
         self.endTime = duty.endTime ?? Date().addingTimeInterval(60 * 50)
         self.note = duty.note ?? ""
         self.status = duty.status ?? "Запланирована"
-        self.repeatFrequency = duty.repeatFrequencyEnum
+        if let rawValue = duty.repeatFrequency,
+           let freq = RepeatFrequency(rawValue: rawValue),
+           duty.repeatGroupID != nil {
+            self.repeatFrequency = freq
+        } else {
+            self.repeatFrequency = nil
+        }
+        self.selectedTrainer = duty.coach
         // selectedTrainer — устанавливается снаружи после инициализации
     }
 
@@ -437,7 +449,7 @@ extension EntryViewModel {
         let request = NSFetchRequest<T>(entityName: String(describing: type))
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "repeatGroupID == %@", groupID as CVarArg),
-            NSPredicate(format: "\(fieldName) >= %@", date as NSDate)
+            NSPredicate(format: "\(fieldName) > %@", date as NSDate)
         ])
 
         do {
