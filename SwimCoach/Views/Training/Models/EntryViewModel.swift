@@ -563,6 +563,7 @@ extension EntryViewModel {
                     )
                     objectToSave.setValue(UUID(), forKey: "repeatGroupID")
                 }
+                objectToSave.setValue(nil, forKey: "repeatFrequency")
             }
         }
 
