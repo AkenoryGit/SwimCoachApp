@@ -59,9 +59,7 @@ struct NewScheduleView: View {
 
                 Group {
                     if showMonthView {
-                        SystemCalendarView(selectedDate: $selectedDate)
-                            .frame(height: 360)
-                            .clipped()
+                        MonthCalendarView(selectedDate: $selectedDate)
                             .transition(.opacity)
                     } else {
                         WeekCalendarView(selectedDate: $selectedDate)

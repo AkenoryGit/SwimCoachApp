@@ -28,8 +28,10 @@ struct WeekCalendarView: View {
                         .font(.headline)
                         .foregroundColor(isSelected ? .white : .primary)
                         .frame(width: 36, height: 36)
-                        .background(isSelected ? Color.blue : Color.clear)
-                        .clipShape(Circle())
+                        .background(
+                            Circle()
+                                .fill(isSelected ? Color.blue : (calendar.isDateInToday(date) ? Color.gray.opacity(0.3) : Color.clear))
+                        )
                 }
                 .onTapGesture {
                     selectedDate = date
